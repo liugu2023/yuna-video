@@ -1,0 +1,1 @@
+{ "_comment": "mock cookie 文件，仅用于本地联调自动投稿链路，真实 cookie 请用 biliup login 生成到 server/data/cookies.json" }

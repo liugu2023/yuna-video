@@ -1,0 +1,9 @@
+node_modules/
+web/dist/
+server/uploads/
+server/data/
+server/bin/
+.claude/settings.local.json
+*.log
+.env
+.DS_Store
