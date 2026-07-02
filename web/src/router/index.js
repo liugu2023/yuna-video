@@ -31,6 +31,12 @@ const routes = [
         meta: { title: '稿件审核', roles: ['reviewer', 'admin'] },
       },
       {
+        path: 'bili/dynamic',
+        name: 'bili-dynamic',
+        component: () => import('../views/BiliDynamic.vue'),
+        meta: { title: 'B站动态', roles: ['reviewer', 'admin'] },
+      },
+      {
         path: 'admin/users',
         name: 'admin-users',
         component: () => import('../views/AdminUsers.vue'),

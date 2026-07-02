@@ -53,6 +53,15 @@ CREATE TABLE IF NOT EXISTS review_logs (
   created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
+CREATE TABLE IF NOT EXISTS dynamics (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     INTEGER NOT NULL,                   -- 平台内发布人
+  text        TEXT NOT NULL,
+  image_count INTEGER NOT NULL DEFAULT 0,
+  dyn_id      TEXT NOT NULL,                      -- B站动态id（t.bilibili.com/{dyn_id}）
+  created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_videos_user ON videos(user_id);
 CREATE INDEX IF NOT EXISTS idx_videos_status ON videos(status);
 CREATE INDEX IF NOT EXISTS idx_logs_video ON review_logs(video_id);

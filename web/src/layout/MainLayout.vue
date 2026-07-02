@@ -22,6 +22,10 @@
           <el-icon><Checked /></el-icon>
           <span>审核中心</span>
         </el-menu-item>
+        <el-menu-item v-if="store.isReviewer" index="/bili/dynamic">
+          <el-icon><ChatDotRound /></el-icon>
+          <span>B站动态</span>
+        </el-menu-item>
         <el-menu-item v-if="store.isAdmin" index="/admin/users">
           <el-icon><User /></el-icon>
           <span>成员管理</span>
@@ -97,6 +101,7 @@ const activeMenu = computed(() => {
   if (p === '/videos/new') return '/videos/new'
   if (p.startsWith('/videos')) return '/videos'
   if (p.startsWith('/review')) return '/review'
+  if (p.startsWith('/bili/dynamic')) return '/bili/dynamic'
   if (p.startsWith('/admin/bilibili')) return '/admin/bilibili'
   if (p.startsWith('/admin')) return '/admin/users'
   return '/'

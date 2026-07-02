@@ -90,6 +90,9 @@ export const biliApi = {
   check: () => http.post('/bili/check'),
   renew: () => http.post('/bili/renew'),
   unbind: () => http.delete('/bili/binding'),
+  dynamicState: () => http.get('/bili/dynamic/state'),
+  dynamicHistory: () => http.get('/bili/dynamic/history'),
+  postDynamic: (formData) => http.post('/bili/dynamic', formData, { timeout: 0 }),
 }
 
 export default http
