@@ -1,0 +1,10 @@
+# 构建上下文瘦身 + 防止敏感/本地数据进镜像
+.git
+.claude
+**/node_modules
+web/dist
+server/data
+server/uploads
+server/bin
+server/.env
+*.log

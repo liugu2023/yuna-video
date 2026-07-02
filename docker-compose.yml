@@ -1,0 +1,24 @@
+services:
+  yuna-video:
+    build:
+      context: .
+      # 国内网络按需解除注释，加速构建期的依赖与二进制下载
+      # args:
+      #   NPM_REGISTRY: https://registry.npmmirror.com
+      #   BILIUP_GH_MIRROR: https://ghfast.top/
+      #   FFMPEG_BINARIES_URL: https://registry.npmmirror.com/-/binary/ffmpeg-static
+    image: yuna-video
+    container_name: yuna-video
+    restart: unless-stopped
+    ports:
+      - '3000:3000' # 改宿主机端口只动左边，容器内固定监听 3000
+    # 配置沿用 server/.env（模板见 server/.env.example），与裸机部署共用同一份；没有该文件也能启动
+    env_file:
+      - path: ./server/.env
+        required: false
+    environment:
+      # 容器内固定监听 3000，避免 .env 里的 PORT 悄悄改掉监听端口、导致上面的映射失效
+      PORT: 3000
+    volumes:
+      - ./server/data:/app/server/data
+      - ./server/uploads:/app/server/uploads

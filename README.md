@@ -129,6 +129,25 @@ cd ../server && npm start # 后端检测到 web/dist 后会直接托管前端，
 
 数据文件在 `server/data/`，上传文件在 `server/uploads/`，备份这两个目录即可。服务器上执行 `npm install` 时会自动下载当前平台（如 Linux x64/arm64）对应的 biliup 二进制到 `server/bin/`，无需手动准备；解压 `tar.xz` 依赖系统的 `tar` 与 `xz`（Debian/Ubuntu：`apt install xz-utils`）。
 
+### Docker 部署
+
+```bash
+docker compose up -d --build   # 首次构建需几分钟，完成后访问 http://localhost:3000
+```
+
+- **配置**沿用 `server/.env`（模板见 `server/.env.example`）：compose 通过 `env_file` 把它注入容器，与裸机部署共用同一份配置；没有该文件也能正常启动。容器内固定监听 3000，改宿主机端口只改 compose 里 `ports` 的左侧。
+- **数据持久化**：`server/data`（数据库、B站凭据）与 `server/uploads` 已挂载到宿主机，重建容器不丢数据，备份这两个目录即可；扫码绑定B站账号等操作照常在页面上进行。
+- **镜像自带** biliup、ffmpeg 二进制与 `TZ=Asia/Shanghai` 时区（稿件时间按本地时区落库，可在 `.env` 里覆盖 `TZ`）。构建期需要访问 GitHub 下载二进制，国内网络把 compose 里 `build.args` 的三行注释解开即可换镜像源。
+- 不用 compose 时等价的裸命令：
+
+  ```bash
+  docker build -t yuna-video .
+  docker run -d --name yuna-video -p 3000:3000 \
+    -v "$PWD/server/data:/app/server/data" \
+    -v "$PWD/server/uploads:/app/server/uploads" \
+    --env-file server/.env yuna-video   # 没有 server/.env 就去掉 --env-file 这段
+  ```
+
 ## 说明
 
 - 视频在线预览走浏览器原生播放器；浏览器不支持的编码（老式MPEG-4、HEVC、mkv/avi 内的各类编码等）会**自动转码生成 H.264 预览副本**（720p，ffmpeg，随 `npm install` 自动安装），转码期间审核页显示进度提示并自动刷新。原始文件原样保留用于投稿B站。国内服务器安装 ffmpeg 慢可设 `FFMPEG_BINARIES_URL=https://registry.npmmirror.com/-/binary/ffmpeg-static` 后再 `npm install`；也可用 `FFMPEG_PATH` 指定系统已装的 ffmpeg。
