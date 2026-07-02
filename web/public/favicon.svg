@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- 天线 -->
+  <line x1="30" y1="12" x2="43" y2="27" stroke="#fb7299" stroke-width="9" stroke-linecap="round"/>
+  <line x1="70" y1="12" x2="57" y2="27" stroke="#fb7299" stroke-width="9" stroke-linecap="round"/>
+  <!-- 小电视机身 -->
+  <rect x="8" y="26" width="84" height="64" rx="17" fill="#fb7299"/>
+  <!-- 播放三角 -->
+  <path d="M42 45 L64 58 L42 71 Z" fill="#fff" stroke="#fff" stroke-width="7" stroke-linejoin="round"/>
+</svg>
