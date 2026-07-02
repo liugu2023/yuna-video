@@ -11,6 +11,8 @@ import {
   cleanupPublishedVideo,
 } from '../lib/helpers.js'
 import { isConfigured, startPublishJob, getJob, serializeJob } from '../lib/publisher.js'
+import { listSeasons } from '../lib/bili-season.js'
+import { BiliApiError } from '../lib/bili-dynamic.js'
 
 const router = Router()
 router.use(auth, requireRole('reviewer', 'admin'))
@@ -132,8 +134,19 @@ router.get('/publish-config', (req, res) => {
   res.json({ autoPublishEnabled: isConfigured() })
 })
 
+// 协会账号下的B站合集列表（自动投稿时可选加入）
+router.get('/bili-seasons', async (req, res) => {
+  if (!isConfigured()) return res.json({ list: [] })
+  try {
+    res.json({ list: await listSeasons() })
+  } catch (err) {
+    const status = err instanceof BiliApiError ? 502 : 500
+    res.status(status).json({ error: err.message })
+  }
+})
+
 // 发起自动投稿（biliup）
-router.post('/videos/:id/auto-publish', (req, res) => {
+router.post('/videos/:id/auto-publish', async (req, res) => {
   if (!isConfigured()) {
     return res.status(400).json({ error: '服务端未配置 biliup（需要 biliup 可执行文件与B站账号 cookie），请使用人工回填BV号' })
   }
@@ -149,7 +162,23 @@ router.post('/videos/:id/auto-publish', (req, res) => {
   if (!tags.length) return res.status(400).json({ error: 'B站投稿至少需要1个标签' })
   if (tags.some((t) => t.length > 20)) return res.status(400).json({ error: '单个标签不能超过20个字符' })
 
-  const { error, job } = startPublishJob(parseVideoRow(video), req.user, { tid, tags })
+  // 可选：投稿成功后加入合集。此处即时校验合集存在并换取小节ID，避免上传完才发现选错
+  let season = null
+  if (req.body?.seasonId != null && req.body.seasonId !== '') {
+    const seasonId = Number(req.body.seasonId)
+    if (!Number.isInteger(seasonId) || seasonId < 1) {
+      return res.status(400).json({ error: '合集ID不正确' })
+    }
+    try {
+      const found = (await listSeasons()).find((s) => s.id === seasonId)
+      if (!found) return res.status(400).json({ error: '所选合集不存在或已删除，请刷新后重选' })
+      season = { id: found.id, sectionId: found.sectionId, title: found.title }
+    } catch (err) {
+      return res.status(err instanceof BiliApiError ? 502 : 500).json({ error: `校验合集失败：${err.message}` })
+    }
+  }
+
+  const { error, job } = startPublishJob(parseVideoRow(video), req.user, { tid, tags, season })
   if (error) return res.status(409).json({ error })
   res.json(serializeJob(job))
 })

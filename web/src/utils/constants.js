@@ -35,6 +35,7 @@ export const ACTION_MAP = {
   approve: { label: '审核通过', type: 'success' },
   reject: { label: '驳回', type: 'danger' },
   publish: { label: '发布', type: 'primary' },
+  season: { label: '加入合集', type: 'primary' },
 }
 
 export const ROLE_MAP = {

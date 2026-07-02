@@ -66,6 +66,7 @@ export const reviewApi = {
   reject: (id, comment) => http.post(`/review/videos/${id}/reject`, { comment }),
   publish: (id, bvid) => http.post(`/review/videos/${id}/publish`, { bvid }),
   publishConfig: () => http.get('/review/publish-config'),
+  biliSeasons: () => http.get('/review/bili-seasons'),
   autoPublish: (id, data) => http.post(`/review/videos/${id}/auto-publish`, data),
   publishJob: (jobId) => http.get(`/review/publish-jobs/${jobId}`),
 }

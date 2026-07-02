@@ -128,6 +128,27 @@
                       style="width: 100%"
                     />
                   </el-form-item>
+                  <el-form-item label="合集">
+                    <el-select
+                      v-model="seasonId"
+                      clearable
+                      filterable
+                      :loading="seasonsLoading"
+                      placeholder="不加入合集（可选）"
+                      style="width: 100%"
+                      @visible-change="(v) => v && loadSeasons()"
+                    >
+                      <el-option
+                        v-for="s in seasons"
+                        :key="s.id"
+                        :label="`${s.title}（${s.epCount}个视频）`"
+                        :value="s.id"
+                      />
+                      <template #empty>
+                        <p class="season-empty">{{ seasonsHint }}</p>
+                      </template>
+                    </el-select>
+                  </el-form-item>
                 </el-form>
                 <el-button type="primary" :loading="jobRunning" style="width: 100%" @click="startAuto">
                   {{ jobRunning ? '投稿进行中…' : '以协会账号自动投稿' }}
@@ -135,9 +156,16 @@
 
                 <div v-if="job" style="margin-top: 12px">
                   <el-alert v-if="job.status === 'running'" type="info" :closable="false" show-icon>
-                    <template #title>正在上传投稿，请勿关闭服务…</template>
-                    <div class="job-line">{{ job.lastLines?.[job.lastLines.length - 1] || '启动中…' }}</div>
+                    <template #title>正在上传投稿（已进行 {{ jobElapsed }}），请勿关闭服务…</template>
+                    <div class="job-line">{{ job.stage || '启动中…' }}</div>
                   </el-alert>
+                  <el-alert
+                    v-else-if="job.seasonStatus === 'adding'"
+                    type="info"
+                    :closable="false"
+                    show-icon
+                    :title="`投稿成功，正在将稿件加入合集「${job.seasonTitle}」…`"
+                  />
                   <el-alert v-else-if="job.status === 'succeeded' && !job.bvid" type="warning" :closable="false" show-icon
                     title="biliup 执行成功，但未识别到BV号，请到B站创作中心确认后人工回填" />
                   <el-alert v-else-if="job.status === 'failed'" type="error" :closable="false" show-icon>
@@ -233,6 +261,28 @@ const pubTags = ref([])
 const job = ref(null)
 let pollTimer = null
 
+// B站合集（可选，投稿成功后自动加入）
+const seasons = ref([])
+const seasonId = ref(null)
+const seasonsLoading = ref(false)
+const seasonsHint = ref('账号下暂无合集，请先到B站创作中心创建')
+let seasonsLoaded = false
+
+async function loadSeasons() {
+  if (seasonsLoaded || seasonsLoading.value) return
+  seasonsLoading.value = true
+  try {
+    const r = await reviewApi.biliSeasons()
+    seasons.value = r.list || []
+    seasonsLoaded = true
+  } catch {
+    // 拉取失败（如登录态过期）时下拉保持为空，展开下拉可重试
+    seasonsHint.value = '合集列表获取失败，展开下拉可重试'
+  } finally {
+    seasonsLoading.value = false
+  }
+}
+
 const playable = computed(() => isPlayable(video.value?.video_path))
 const playError = ref(false)
 // 优先播放转码出的预览副本，其次浏览器可直接播放的原片
@@ -243,6 +293,12 @@ const playSrc = computed(() => {
   return playable.value ? v.video_path : ''
 })
 const jobRunning = computed(() => job.value?.status === 'running')
+const jobElapsed = computed(() => {
+  if (!job.value?.startedAt) return ''
+  const end = job.value.finishedAt ? new Date(job.value.finishedAt) : new Date()
+  const sec = Math.max(0, Math.round((end - new Date(job.value.startedAt)) / 1000))
+  return sec >= 60 ? `${Math.floor(sec / 60)}分${sec % 60}秒` : `${sec}秒`
+})
 
 let previewTimer = null
 
@@ -254,6 +310,8 @@ async function load() {
     if (!pubTags.value.length && video.value.tags?.length) {
       pubTags.value = [...video.value.tags]
     }
+    // 已通过待发布的稿件才需要合集列表（避免无谓请求B站接口）
+    if (video.value.status === 'approved' && autoPublishEnabled.value) loadSeasons()
     // 预览转码中：定时刷新，完成后自动切换成播放器
     clearTimeout(previewTimer)
     if (video.value.preview_status === 'processing') {
@@ -273,16 +331,30 @@ function stopPolling() {
 
 function pollJob(jobId) {
   stopPolling()
+  let publishNotified = false
   pollTimer = setInterval(async () => {
     try {
       const j = await reviewApi.publishJob(jobId)
       job.value = j
-      if (j.status !== 'running') {
-        stopPolling()
-        if (j.status === 'succeeded' && j.bvid) {
-          ElMessage.success(`自动投稿成功：${j.bvid}`)
-          load()
-        }
+      if (j.status === 'succeeded' && j.bvid && !publishNotified) {
+        publishNotified = true
+        ElMessage.success(`自动投稿成功：${j.bvid}`)
+        load()
+      }
+      // 投稿结束后若还在加入合集，继续轮询直到有结果
+      if (j.status === 'running' || j.seasonStatus === 'adding') return
+      stopPolling()
+      if (j.seasonStatus === 'added') {
+        ElMessage.success(`已将稿件加入合集「${j.seasonTitle}」`)
+        load()
+      } else if (j.seasonStatus === 'failed') {
+        ElMessage({
+          type: 'warning',
+          message: `加入合集「${j.seasonTitle}」失败：${j.seasonError || '未知原因'}，可到B站创作中心手动添加`,
+          duration: 8000,
+          showClose: true,
+        })
+        load()
       }
     } catch {
       stopPolling()
@@ -300,12 +372,15 @@ async function startAuto() {
     ElMessage.warning('B站投稿至少需要1个标签')
     return
   }
+  const seasonTitle = seasonId.value ? seasons.value.find((s) => s.id === seasonId.value)?.title : ''
   await ElMessageBox.confirm(
-    `将以协会B站账号自动投稿《${video.value.title}》，投稿成功后自动回填BV号。确定继续吗？`,
+    `将以协会B站账号自动投稿《${video.value.title}》，成功后自动回填BV号${seasonTitle ? `并加入合集「${seasonTitle}」` : ''}。确定继续吗？`,
     '自动投稿',
     { type: 'warning' }
   )
-  const j = await reviewApi.autoPublish(video.value.id, { tid: tidNum, tags: pubTags.value })
+  const payload = { tid: tidNum, tags: pubTags.value }
+  if (seasonId.value) payload.seasonId = seasonId.value
+  const j = await reviewApi.autoPublish(video.value.id, payload)
   job.value = j
   pollJob(j.id)
 }
@@ -357,10 +432,12 @@ async function publish() {
 }
 
 onMounted(async () => {
-  load()
+  const loaded = load()
   try {
     const cfg = await reviewApi.publishConfig()
     autoPublishEnabled.value = cfg.autoPublishEnabled
+    await loaded
+    if (autoPublishEnabled.value && video.value?.status === 'approved') loadSeasons()
   } catch {
     /* 未配置时静默 */
   }
@@ -421,6 +498,14 @@ onUnmounted(() => {
   font-size: 12px;
   color: #606266;
   word-break: break-all;
+}
+
+.season-empty {
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #909399;
+  text-align: center;
 }
 
 .job-output {

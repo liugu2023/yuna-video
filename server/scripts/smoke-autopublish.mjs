@@ -74,6 +74,19 @@ const noTags = await api('POST', `/review/videos/${vid}/auto-publish`, { token, 
 check('无标签被拒(400)', noTags.status === 400)
 const badTid = await api('POST', `/review/videos/${vid}/auto-publish`, { token, body: { tid: 'abc', tags: ['x'] } })
 check('非法tid被拒(400)', badTid.status === 400)
+const badSeason = await api('POST', `/review/videos/${vid}/auto-publish`, { token, body: { tid: 21, tags: ['x'], seasonId: 'abc' } })
+check('非法合集ID被拒(400)', badSeason.status === 400, JSON.stringify(badSeason.data))
+// mock cookie 无法通过B站校验/查不到该合集，两种情况都应拒绝而不是带错误配置开始上传
+const ghostSeason = await api('POST', `/review/videos/${vid}/auto-publish`, { token, body: { tid: 21, tags: ['x'], seasonId: 999999999 } })
+check('不存在的合集被拒(4xx/5xx)', ghostSeason.status >= 400, JSON.stringify(ghostSeason.data))
+
+const seasonsRes = await api('GET', '/review/bili-seasons', { token })
+check(
+  '合集列表路由可用（返回列表或可读错误）',
+  (seasonsRes.status === 200 && Array.isArray(seasonsRes.data?.list)) ||
+    (seasonsRes.status >= 500 && typeof seasonsRes.data?.error === 'string'),
+  `${seasonsRes.status} ${JSON.stringify(seasonsRes.data)}`
+)
 
 console.log('== 发起自动投稿 ==')
 const start = await api('POST', `/review/videos/${vid}/auto-publish`, { token, body: { tid: 21, tags: ['测试', '协会'] } })

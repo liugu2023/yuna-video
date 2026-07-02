@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import config from '../config.js'
+import { cleanBiliupLine } from './publisher.js'
 
 const TV_APPKEY = '4409e2ce8ffd12b8'
 const TV_APPSEC = '59b43e04ad6965f34319062b478f83dd'
@@ -151,7 +152,7 @@ export function runBiliupRenew() {
     }
     const onData = (buf) => {
       for (const raw of buf.toString('utf8').split(/\r?\n/)) {
-        const line = raw.trim()
+        const line = cleanBiliupLine(raw)
         if (line) {
           lines.push(line)
           if (lines.length > 100) lines.shift()
