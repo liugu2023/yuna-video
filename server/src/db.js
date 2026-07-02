@@ -74,6 +74,9 @@ function addColumnIfMissing(table, name, colDef) {
 }
 addColumnIfMissing('users', 'email', "email TEXT NOT NULL DEFAULT ''")
 addColumnIfMissing('users', 'department', "department TEXT NOT NULL DEFAULT ''")
+addColumnIfMissing('videos', 'preview_path', "preview_path TEXT NOT NULL DEFAULT ''")
+// preview_status: '' 未探测 | none 无需转码 | processing 转码中 | ready 预览可用 | failed 失败 | skipped 无ffmpeg
+addColumnIfMissing('videos', 'preview_status', "preview_status TEXT NOT NULL DEFAULT ''")
 
 export function transaction(fn) {
   db.exec('BEGIN')

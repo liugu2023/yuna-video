@@ -5,8 +5,8 @@ import db from '../db.js'
 
 export const VIDEO_STATUSES = ['draft', 'pending', 'approved', 'rejected', 'published']
 
-// 只允许引用本服务生成的上传文件路径，防止路径注入
-export const SAFE_UPLOAD_PATH = /^\/uploads\/(videos|covers)\/[A-Za-z0-9._-]+$/
+// 只允许引用本服务生成的上传文件路径，防止路径注入（previews 为服务端生成的预览副本）
+export const SAFE_UPLOAD_PATH = /^\/uploads\/(videos|covers|previews)\/[A-Za-z0-9._-]+$/
 
 export function paginate(req, defaultSize = 10) {
   const page = Math.max(1, parseInt(req.query.page, 10) || 1)
@@ -26,10 +26,10 @@ export function deleteUploadFile(relPath) {
   fs.unlink(abs, () => {})
 }
 
-// 发布成功后删除本地视频文件以节约磁盘（封面保留用于平台内展示，稿件记录不动）。
+// 发布成功后删除本地视频文件与预览副本以节约磁盘（封面保留用于平台内展示，稿件记录不动）。
 // 删除成功（或文件已不存在）才清空 video_path；失败时保留路径，交给下次启动的兜底清扫重试。
 export function cleanupPublishedVideo(videoId) {
-  const video = db.prepare('SELECT video_path FROM videos WHERE id = ?').get(videoId)
+  const video = db.prepare('SELECT video_path, preview_path FROM videos WHERE id = ?').get(videoId)
   const relPath = video?.video_path
   if (!relPath || !SAFE_UPLOAD_PATH.test(relPath)) return false
   try {
@@ -40,7 +40,8 @@ export function cleanupPublishedVideo(videoId) {
       return false
     }
   }
-  db.prepare(`UPDATE videos SET video_path = '' WHERE id = ?`).run(videoId)
+  deleteUploadFile(video.preview_path)
+  db.prepare(`UPDATE videos SET video_path = '', preview_path = '', preview_status = '' WHERE id = ?`).run(videoId)
   return true
 }
 

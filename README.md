@@ -125,6 +125,6 @@ cd ../server && npm start # 后端检测到 web/dist 后会直接托管前端，
 
 ## 说明
 
-- 视频在线预览走浏览器原生播放器（支持 mp4/webm/mov），其他格式提供下载链接供审核员查看。
+- 视频在线预览走浏览器原生播放器；浏览器不支持的编码（老式MPEG-4、HEVC、mkv/avi 内的各类编码等）会**自动转码生成 H.264 预览副本**（720p，ffmpeg，随 `npm install` 自动安装），转码期间审核页显示进度提示并自动刷新。原始文件原样保留用于投稿B站。国内服务器安装 ffmpeg 慢可设 `FFMPEG_BINARIES_URL=https://registry.npmmirror.com/-/binary/ffmpeg-static` 后再 `npm install`；也可用 `FFMPEG_PATH` 指定系统已装的 ffmpeg。
 - 稿件发布成功后（人工回填BV号或自动投稿），本地视频文件会自动删除以节约磁盘空间（封面与稿件记录保留，详情页提供B站观看链接）；启动时会兜底清扫历史遗留文件。
 - 接口冒烟测试：`node scripts/smoke-test.mjs`（主流程）、`node scripts/smoke-autopublish.mjs`（自动投稿链路）、`node scripts/smoke-bili.mjs`（B站绑定与保活链路，需联网）、`node scripts/smoke-dynamic.mjs`（动态发布链路，需联网、不会真实发出动态），除主流程外均需 mock 配置启动后端（见各脚本头部注释）。

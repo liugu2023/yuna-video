@@ -2,6 +2,7 @@ import { Router } from 'express'
 import db, { transaction } from '../db.js'
 import { auth } from '../middleware/auth.js'
 import { notifySubmission } from '../lib/mailer.js'
+import { ensurePreview } from '../lib/transcoder.js'
 import {
   VIDEO_STATUSES,
   paginate,
@@ -89,6 +90,7 @@ router.post('/', (req, res) => {
       data.videoSize
     )
 
+  ensurePreview(info.lastInsertRowid) // 后台探测编码，浏览器不支持时生成预览副本
   res.json(getVideoWithNames(info.lastInsertRowid))
 })
 
@@ -111,9 +113,11 @@ router.put('/:id', (req, res) => {
   const { error, data } = validateVideoPayload(req.body)
   if (error) return res.status(400).json({ error })
 
-  // 替换了视频/封面时清理旧文件
-  if (video.video_path && data.videoPath !== video.video_path) deleteUploadFile(video.video_path)
+  // 替换了视频/封面时清理旧文件；换视频后重新探测转码预览
+  const videoChanged = data.videoPath !== video.video_path
+  if (video.video_path && videoChanged) deleteUploadFile(video.video_path)
   if (video.cover_path && data.coverPath !== video.cover_path) deleteUploadFile(video.cover_path)
+  if (videoChanged && video.preview_path) deleteUploadFile(video.preview_path)
 
   db.prepare(
     `UPDATE videos SET title = ?, description = ?, tags = ?, category = ?,
@@ -131,6 +135,10 @@ router.put('/:id', (req, res) => {
     data.videoSize,
     video.id
   )
+  if (videoChanged) {
+    db.prepare(`UPDATE videos SET preview_path = '', preview_status = '' WHERE id = ?`).run(video.id)
+    ensurePreview(video.id)
+  }
 
   res.json(getVideoWithNames(video.id))
 })
@@ -151,6 +159,7 @@ router.delete('/:id', (req, res) => {
   })
   deleteUploadFile(video.video_path)
   deleteUploadFile(video.cover_path)
+  deleteUploadFile(video.preview_path)
 
   res.json({ ok: true })
 })

@@ -20,20 +20,25 @@
         <el-col :span="14">
           <div class="page-card">
             <video
-              v-if="video.video_path && playable && !playError"
-              :src="video.video_path"
+              v-if="playSrc && !playError"
+              :src="playSrc"
               :poster="video.cover_path || undefined"
               controls
               preload="metadata"
               class="player"
               @error="playError = true"
             />
-            <el-alert v-else-if="video.video_path" type="info" :closable="false" show-icon>
+            <el-alert
+              v-else-if="video.video_path"
+              :type="video.preview_status === 'processing' ? 'warning' : 'info'"
+              :closable="false"
+              show-icon
+            >
               <template #title>
-                {{ playError
-                  ? '该视频的编码浏览器无法在线播放（常见于老式MPEG-4、HEVC等，不影响投稿B站），'
-                  : `该格式（${video.video_name}）浏览器可能无法在线预览，` }}
-                <el-link type="primary" :href="video.video_path" target="_blank" download>点击下载查看</el-link>
+                {{ video.preview_status === 'processing'
+                  ? '该视频的编码浏览器不能直接播放，正在转码生成在线预览（完成后自动刷新）；也可'
+                  : '该视频暂时无法在线播放，请' }}
+                <el-link type="primary" :href="video.video_path" target="_blank" download>下载原片查看</el-link>
               </template>
             </el-alert>
             <el-alert v-else-if="video.status === 'published'" type="success" :closable="false" show-icon>
@@ -230,7 +235,16 @@ let pollTimer = null
 
 const playable = computed(() => isPlayable(video.value?.video_path))
 const playError = ref(false)
+// 优先播放转码出的预览副本，其次浏览器可直接播放的原片
+const playSrc = computed(() => {
+  const v = video.value
+  if (!v) return ''
+  if (v.preview_status === 'ready' && v.preview_path) return v.preview_path
+  return playable.value ? v.video_path : ''
+})
 const jobRunning = computed(() => job.value?.status === 'running')
+
+let previewTimer = null
 
 async function load() {
   loading.value = true
@@ -239,6 +253,11 @@ async function load() {
     video.value = await reviewApi.get(route.params.id)
     if (!pubTags.value.length && video.value.tags?.length) {
       pubTags.value = [...video.value.tags]
+    }
+    // 预览转码中：定时刷新，完成后自动切换成播放器
+    clearTimeout(previewTimer)
+    if (video.value.preview_status === 'processing') {
+      previewTimer = setTimeout(load, 5000)
     }
   } finally {
     loading.value = false
@@ -347,7 +366,10 @@ onMounted(async () => {
   }
 })
 
-onUnmounted(stopPolling)
+onUnmounted(() => {
+  stopPolling()
+  clearTimeout(previewTimer)
+})
 </script>
 
 <style scoped>

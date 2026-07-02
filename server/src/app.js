@@ -13,6 +13,7 @@ import statsRoutes from './routes/stats.js'
 import biliRoutes from './routes/bili.js'
 import { startKeepalive } from './lib/bili-account.js'
 import { sweepPublishedVideos } from './lib/helpers.js'
+import { recoverPreviews } from './lib/transcoder.js'
 
 const app = express()
 app.disable('x-powered-by')
@@ -58,3 +59,6 @@ startKeepalive()
 
 // 清理历史遗留：已发布稿件的本地视频文件（发布成功后即删，这里兜底）
 sweepPublishedVideos()
+
+// 预览转码：恢复被重启打断的任务，补扫历史稿件
+recoverPreviews()
