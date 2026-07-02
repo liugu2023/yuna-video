@@ -6,7 +6,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import config from '../config.js'
 import db from '../db.js'
-import { addLog } from './helpers.js'
+import { addLog, cleanupPublishedVideo } from './helpers.js'
 
 const jobs = new Map()
 let runningJob = null // 同一时间只允许一个投稿任务，避免触发B站风控
@@ -98,7 +98,8 @@ export function startPublishJob(video, operator, { tid, tags }) {
              published_at = datetime('now','localtime'), updated_at = datetime('now','localtime')
            WHERE id = ?`
         ).run(job.bvid, video.id)
-        addLog(video.id, operator.id, 'publish', `biliup 自动投稿成功：${job.bvid}`)
+        const cleaned = cleanupPublishedVideo(video.id)
+        addLog(video.id, operator.id, 'publish', `biliup 自动投稿成功：${job.bvid}${cleaned ? '；本地视频文件已清理' : ''}`)
       }
     }
     console.log(`[biliup] 任务 ${job.id} ${status}${job.bvid ? ' ' + job.bvid : ''}${error ? ' ' + error : ''}`)

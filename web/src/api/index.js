@@ -26,8 +26,6 @@ http.interceptors.response.use(
 )
 
 export const authApi = {
-  config: () => http.get('/auth/config'),
-  register: (data) => http.post('/auth/register', data),
   login: (data) => http.post('/auth/login', data),
   me: () => http.get('/auth/me'),
   changePassword: (data) => http.put('/auth/password', data),

@@ -12,6 +12,7 @@ import adminRoutes from './routes/admin.js'
 import statsRoutes from './routes/stats.js'
 import biliRoutes from './routes/bili.js'
 import { startKeepalive } from './lib/bili-account.js'
+import { sweepPublishedVideos } from './lib/helpers.js'
 
 const app = express()
 app.disable('x-powered-by')
@@ -47,9 +48,6 @@ app.use((err, req, res, next) => {
 const server = app.listen(config.port, () => {
   console.log(`[server] 后端服务已启动: http://localhost:${config.port}`)
   console.log(`[server] 上传目录: ${config.uploadDir}`)
-  if (!config.inviteCode) {
-    console.log('[server] 当前为开放注册，如需邀请码注册请设置环境变量 INVITE_CODE')
-  }
 })
 
 // 大视频上传耗时较长，关闭请求超时限制
@@ -57,3 +55,6 @@ server.requestTimeout = 0
 
 // B站登录态定时保活
 startKeepalive()
+
+// 清理历史遗留：已发布稿件的本地视频文件（发布成功后即删，这里兜底）
+sweepPublishedVideos()

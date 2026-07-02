@@ -66,7 +66,10 @@ check('管理员登录', login.status === 200)
 const token = login.data?.token
 
 const memberName = `smoke_bili_${Date.now() % 100000}`
-await api('POST', '/auth/register', { body: { username: memberName, nickname: 'B站冒烟', password: 'smoke123456' } })
+await api('POST', '/admin/users', {
+  token,
+  body: { username: memberName, nickname: 'B站冒烟', password: 'smoke123456', role: 'member' },
+})
 const memberLogin = await api('POST', '/auth/login', { body: { username: memberName, password: 'smoke123456' } })
 const memberToken = memberLogin.data?.token
 const memberAccess = await api('GET', '/bili/status', { token: memberToken })

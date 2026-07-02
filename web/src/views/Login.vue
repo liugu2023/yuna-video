@@ -7,69 +7,40 @@
         <p class="text-muted">B站视频上传 · 审核 · 发布一站式管理</p>
       </div>
 
-      <el-tabs v-model="tab" stretch>
-        <el-tab-pane label="登录" name="login">
-          <el-form ref="loginRef" :model="loginForm" :rules="loginRules" size="large">
-            <el-form-item prop="username">
-              <el-input v-model="loginForm.username" placeholder="用户名" :prefix-icon="User" />
-            </el-form-item>
-            <el-form-item prop="password">
-              <el-input
-                v-model="loginForm.password"
-                type="password"
-                placeholder="密码"
-                show-password
-                :prefix-icon="Lock"
-                @keyup.enter="doLogin"
-              />
-            </el-form-item>
-            <el-button type="primary" size="large" class="submit-btn" :loading="loading" @click="doLogin">
-              登 录
-            </el-button>
-          </el-form>
-        </el-tab-pane>
-
-        <el-tab-pane label="注册" name="register">
-          <el-form ref="regRef" :model="regForm" :rules="regRules" size="large">
-            <el-form-item prop="username">
-              <el-input v-model="regForm.username" placeholder="用户名（3-20位字母/数字/下划线）" :prefix-icon="User" />
-            </el-form-item>
-            <el-form-item prop="nickname">
-              <el-input v-model="regForm.nickname" placeholder="昵称（协会内展示名）" :prefix-icon="Postcard" />
-            </el-form-item>
-            <el-form-item prop="password">
-              <el-input v-model="regForm.password" type="password" placeholder="密码（至少6位）" show-password :prefix-icon="Lock" />
-            </el-form-item>
-            <el-form-item prop="confirm">
-              <el-input v-model="regForm.confirm" type="password" placeholder="确认密码" show-password :prefix-icon="Lock" />
-            </el-form-item>
-            <el-form-item v-if="inviteRequired" prop="inviteCode">
-              <el-input v-model="regForm.inviteCode" placeholder="邀请码" :prefix-icon="Key" />
-            </el-form-item>
-            <el-button type="primary" size="large" class="submit-btn" :loading="loading" @click="doRegister">
-              注册并登录
-            </el-button>
-          </el-form>
-        </el-tab-pane>
-      </el-tabs>
+      <el-form ref="loginRef" :model="loginForm" :rules="loginRules" size="large">
+        <el-form-item prop="username">
+          <el-input v-model="loginForm.username" placeholder="用户名" :prefix-icon="User" />
+        </el-form-item>
+        <el-form-item prop="password">
+          <el-input
+            v-model="loginForm.password"
+            type="password"
+            placeholder="密码"
+            show-password
+            :prefix-icon="Lock"
+            @keyup.enter="doLogin"
+          />
+        </el-form-item>
+        <el-button type="primary" size="large" class="submit-btn" :loading="loading" @click="doLogin">
+          登 录
+        </el-button>
+      </el-form>
+      <p class="text-muted register-hint">账号由管理员统一创建，如需开通请联系协会管理员</p>
     </el-card>
   </div>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { User, Lock, Postcard, Key } from '@element-plus/icons-vue'
-import { authApi } from '../api'
+import { User, Lock } from '@element-plus/icons-vue'
 import { useUserStore } from '../stores/user'
 
 const router = useRouter()
 const store = useUserStore()
 
-const tab = ref('login')
 const loading = ref(false)
-const inviteRequired = ref(false)
 
 const loginRef = ref()
 const loginForm = reactive({ username: '', password: '' })
@@ -78,61 +49,12 @@ const loginRules = {
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
 }
 
-const regRef = ref()
-const regForm = reactive({ username: '', nickname: '', password: '', confirm: '', inviteCode: '' })
-const regRules = {
-  username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' },
-    { pattern: /^[A-Za-z0-9_]{3,20}$/, message: '3-20位字母、数字或下划线', trigger: 'blur' },
-  ],
-  nickname: [{ required: true, message: '请输入昵称', trigger: 'blur' }],
-  password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, max: 64, message: '密码长度需为6-64位', trigger: 'blur' },
-  ],
-  confirm: [
-    { required: true, message: '请再次输入密码', trigger: 'blur' },
-    {
-      validator: (rule, value, cb) => (value === regForm.password ? cb() : cb(new Error('两次输入的密码不一致'))),
-      trigger: 'blur',
-    },
-  ],
-  inviteCode: [{ required: true, message: '请输入邀请码', trigger: 'blur' }],
-}
-
-onMounted(async () => {
-  try {
-    const cfg = await authApi.config()
-    inviteRequired.value = cfg.inviteRequired
-  } catch {
-    /* 后端未启动时静默 */
-  }
-})
-
 async function doLogin() {
   await loginRef.value.validate()
   loading.value = true
   try {
     await store.login({ username: loginForm.username, password: loginForm.password })
     ElMessage.success(`欢迎回来，${store.user.nickname}`)
-    router.push('/')
-  } finally {
-    loading.value = false
-  }
-}
-
-async function doRegister() {
-  await regRef.value.validate()
-  loading.value = true
-  try {
-    const data = await authApi.register({
-      username: regForm.username,
-      nickname: regForm.nickname,
-      password: regForm.password,
-      inviteCode: regForm.inviteCode,
-    })
-    store.applyAuth(data)
-    ElMessage.success('注册成功，已自动登录')
     router.push('/')
   } finally {
     loading.value = false
@@ -158,7 +80,7 @@ async function doRegister() {
 .brand {
   text-align: center;
   color: var(--el-color-primary);
-  margin-bottom: 8px;
+  margin-bottom: 16px;
 }
 
 .brand h2 {
@@ -173,5 +95,11 @@ async function doRegister() {
 .submit-btn {
   width: 100%;
   margin-top: 4px;
+}
+
+.register-hint {
+  text-align: center;
+  margin: 14px 0 0;
+  font-size: 12px;
 }
 </style>

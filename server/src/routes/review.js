@@ -8,6 +8,7 @@ import {
   parseVideoRow,
   getVideoWithNames,
   getVideoLogs,
+  cleanupPublishedVideo,
 } from '../lib/helpers.js'
 import { isConfigured, startPublishJob, getJob, serializeJob } from '../lib/publisher.js'
 
@@ -153,7 +154,8 @@ router.post('/videos/:id/publish', (req, res) => {
        published_at = datetime('now','localtime'), updated_at = datetime('now','localtime')
      WHERE id = ?`
   ).run(bvid, video.id)
-  addLog(video.id, req.user.id, 'publish', `已发布至B站：${bvid}`)
+  const cleaned = cleanupPublishedVideo(video.id)
+  addLog(video.id, req.user.id, 'publish', `已发布至B站：${bvid}${cleaned ? '；本地视频文件已清理' : ''}`)
 
   res.json(getVideoWithNames(video.id))
 })

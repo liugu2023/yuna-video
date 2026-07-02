@@ -62,7 +62,10 @@ const revLogin = await api('POST', '/auth/login', { body: { username: `smoke_rev
 const revToken = revLogin.data?.token
 check('审核员登录', revLogin.status === 200)
 
-await api('POST', '/auth/register', { body: { username: `smoke_mem_${suffix}`, nickname: '动态冒烟成员', password: 'smoke123456' } })
+await api('POST', '/admin/users', {
+  token,
+  body: { username: `smoke_mem_${suffix}`, nickname: '动态冒烟成员', password: 'smoke123456', role: 'member' },
+})
 const memLogin = await api('POST', '/auth/login', { body: { username: `smoke_mem_${suffix}`, password: 'smoke123456' } })
 const memToken = memLogin.data?.token
 

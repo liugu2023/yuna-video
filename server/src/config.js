@@ -8,8 +8,6 @@ export default {
   port: Number(process.env.PORT || 3000),
   jwtSecret: process.env.JWT_SECRET || 'yuna-video-dev-secret-please-change',
   tokenExpiresIn: '7d',
-  // 邀请码：设置环境变量 INVITE_CODE 后，注册时必须填写；为空则开放注册
-  inviteCode: process.env.INVITE_CODE || '',
   rootDir,
   dataDir: path.join(rootDir, 'data'),
   uploadDir: path.join(rootDir, 'uploads'),

@@ -33,6 +33,19 @@
                 <el-link type="primary" :href="video.video_path" target="_blank" download>点击下载查看</el-link>
               </template>
             </el-alert>
+            <el-alert v-else-if="video.status === 'published'" type="success" :closable="false" show-icon>
+              <template #title>
+                发布成功后本地视频文件已清理，请前往
+                <el-link
+                  type="primary"
+                  :href="`https://www.bilibili.com/video/${video.bilibili_bvid}`"
+                  target="_blank"
+                  style="vertical-align: baseline"
+                >
+                  B站观看
+                </el-link>
+              </template>
+            </el-alert>
             <el-empty v-else description="投稿人未上传视频文件" :image-size="80" />
 
             <h2 class="v-title">{{ video.title }}</h2>

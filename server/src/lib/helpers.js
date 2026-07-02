@@ -26,6 +26,32 @@ export function deleteUploadFile(relPath) {
   fs.unlink(abs, () => {})
 }
 
+// 发布成功后删除本地视频文件以节约磁盘（封面保留用于平台内展示，稿件记录不动）。
+// 删除成功（或文件已不存在）才清空 video_path；失败时保留路径，交给下次启动的兜底清扫重试。
+export function cleanupPublishedVideo(videoId) {
+  const video = db.prepare('SELECT video_path FROM videos WHERE id = ?').get(videoId)
+  const relPath = video?.video_path
+  if (!relPath || !SAFE_UPLOAD_PATH.test(relPath)) return false
+  try {
+    fs.unlinkSync(path.join(config.uploadDir, relPath.slice('/uploads/'.length)))
+  } catch (err) {
+    if (err.code !== 'ENOENT') {
+      console.warn(`[cleanup] 删除已发布稿件 #${videoId} 的视频文件失败：${err.message}`)
+      return false
+    }
+  }
+  db.prepare(`UPDATE videos SET video_path = '' WHERE id = ?`).run(videoId)
+  return true
+}
+
+// 启动兜底：清理仍残留本地视频文件的已发布稿件（功能上线前的历史数据、或上次删除失败）
+export function sweepPublishedVideos() {
+  const rows = db.prepare(`SELECT id FROM videos WHERE status = 'published' AND video_path != ''`).all()
+  let n = 0
+  for (const { id } of rows) if (cleanupPublishedVideo(id)) n++
+  if (n) console.log(`[cleanup] 启动清扫：已清理 ${n} 个已发布稿件的本地视频文件`)
+}
+
 export function parseVideoRow(row) {
   if (!row) return row
   let tags = []

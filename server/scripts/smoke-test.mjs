@@ -1,5 +1,10 @@
 // 核心业务流程冒烟测试：node scripts/smoke-test.mjs（需要后端已在 3000 端口运行）
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 const BASE = process.env.BASE_URL || 'http://localhost:3000'
+const uploadDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../uploads')
 let passed = 0
 let failed = 0
 
@@ -36,13 +41,21 @@ const adminLogin = await api('POST', '/auth/login', {
 check('管理员登录', adminLogin.status === 200 && adminLogin.data.token)
 const adminToken = adminLogin.data.token
 
-console.log('== 2. 注册普通成员 ==')
-const uname = `member_${Date.now().toString(36)}`
-const reg = await api('POST', '/auth/register', {
-  body: { username: uname, nickname: '测试成员', password: 'test123456' },
+console.log('== 2. 管理员创建普通成员（自助注册已关闭） ==')
+const regClosed = await api('POST', '/auth/register', {
+  body: { username: 'nobody', nickname: '路人', password: 'test123456' },
 })
-check('注册并获得token', reg.status === 200 && reg.data.token, JSON.stringify(reg.data))
-const memberToken = reg.data.token
+check('注册接口已关闭(404)', regClosed.status === 404)
+
+const uname = `member_${Date.now().toString(36)}`
+const createdUser = await api('POST', '/admin/users', {
+  token: adminToken,
+  body: { username: uname, nickname: '测试成员', password: 'test123456', role: 'member' },
+})
+check('管理员创建成员账号', createdUser.status === 200, JSON.stringify(createdUser.data))
+const memberLogin = await api('POST', '/auth/login', { body: { username: uname, password: 'test123456' } })
+check('成员登录并获得token', memberLogin.status === 200 && memberLogin.data.token, JSON.stringify(memberLogin.data))
+const memberToken = memberLogin.data.token
 
 console.log('== 3. 成员上传视频文件 ==')
 const form = new FormData()
@@ -96,6 +109,9 @@ const published = await api('POST', `/review/videos/${vid}/publish`, {
   body: { bvid: 'BV1xx411c7XX' },
 })
 check('标记发布成功', published.status === 200 && published.data.status === 'published')
+check('发布后 video_path 已清空', published.data.video_path === '', published.data.video_path)
+const localFile = path.join(uploadDir, up.data.path.slice('/uploads/'.length))
+check('发布后本地视频文件已删除', !fs.existsSync(localFile), localFile)
 
 console.log('== 8. 详情与日志 ==')
 const detail = await api('GET', `/videos/${vid}`, { token: memberToken })
@@ -110,10 +126,10 @@ console.log('== 9. 统计与成员管理 ==')
 const dash = await api('GET', '/stats/dashboard', { token: adminToken })
 check('工作台统计返回全站数据', dash.status === 200 && dash.data.site && dash.data.userCount >= 2)
 
-const users = await api('GET', '/admin/users', { token: adminToken })
-check('成员列表包含新成员', users.data.list?.some((u) => u.username === uname))
+const users = await api('GET', `/admin/users?keyword=${uname}&pageSize=100`, { token: adminToken })
+check('成员列表可搜到新成员', users.data.list?.some((u) => u.username === uname))
 
-const memberId = users.data.list.find((u) => u.username === uname).id
+const memberId = users.data.list.find((u) => u.username === uname)?.id
 const promote = await api('PUT', `/admin/users/${memberId}`, { token: adminToken, body: { role: 'reviewer' } })
 check('提升为审核员', promote.status === 200 && promote.data.role === 'reviewer')
 

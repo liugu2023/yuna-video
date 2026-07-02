@@ -1,7 +1,18 @@
 // 自动投稿（biliup）链路冒烟测试。
 // 需要后端以 mock 配置启动：
-//   BILIUP_BIN=<scripts/mock-biliup.mjs> BILIUP_COOKIE=<scripts/mock-cookies.json> node src/app.js
+//   BILIUP_BIN=<scripts/mock-biliup.mjs> BILIUP_COOKIE=<server/data/smoke-cookies.json> node src/app.js
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 const BASE = process.env.BASE_URL || 'http://localhost:3000'
+// mock biliup 不读 cookie 内容，但 isConfigured 要求文件存在；缺失时补一个占位文件
+const COOKIE_FILE = process.env.SMOKE_COOKIE || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../data/smoke-cookies.json')
+if (!fs.existsSync(COOKIE_FILE)) {
+  fs.mkdirSync(path.dirname(COOKIE_FILE), { recursive: true })
+  fs.writeFileSync(COOKIE_FILE, JSON.stringify({ _comment: 'smoke placeholder' }))
+}
+
 let passed = 0
 let failed = 0
 
@@ -89,6 +100,7 @@ check(
   detail.data.status === 'published' && detail.data.bilibili_bvid === 'BV1mk4y1z7XX',
   `${detail.data.status} ${detail.data.bilibili_bvid}`
 )
+check('发布后本地视频文件已清理', detail.data.video_path === '', detail.data.video_path)
 check(
   '发布日志已记录',
   detail.data.logs?.some((l) => l.action === 'publish' && l.comment.includes('自动投稿')),

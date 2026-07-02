@@ -35,32 +35,7 @@ function signToken(user) {
   return jwt.sign({ id: user.id }, config.jwtSecret, { expiresIn: config.tokenExpiresIn })
 }
 
-// 注册页需要知道是否要填邀请码
-router.get('/config', (req, res) => {
-  res.json({ inviteRequired: Boolean(config.inviteCode) })
-})
-
-router.post('/register', (req, res) => {
-  const { username, nickname, password, inviteCode } = req.body || {}
-
-  const err = validateAccountFields({ username, nickname, password })
-  if (err) return res.status(400).json({ error: err })
-
-  if (config.inviteCode && String(inviteCode ?? '') !== config.inviteCode) {
-    return res.status(400).json({ error: '邀请码不正确' })
-  }
-
-  const exists = db.prepare('SELECT id FROM users WHERE username = ?').get(username)
-  if (exists) return res.status(409).json({ error: '用户名已存在' })
-
-  const info = db
-    .prepare('INSERT INTO users (username, password_hash, nickname, role) VALUES (?, ?, ?, ?)')
-    .run(username, bcrypt.hashSync(String(password), 10), String(nickname).trim(), 'member')
-
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid)
-  res.json({ token: signToken(user), user: safeUser(user) })
-})
-
+// 平台不开放自助注册，账号统一由管理员在成员管理中创建
 router.post('/login', (req, res) => {
   const { username, password } = req.body || {}
   const user = db.prepare('SELECT * FROM users WHERE username = ?').get(String(username ?? ''))
