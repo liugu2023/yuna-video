@@ -11,6 +11,9 @@
         @clear="load(1)"
       />
       <div class="spacer" />
+      <el-button @click="deptDialog = true">
+        <el-icon><OfficeBuilding /></el-icon>&nbsp;部门管理
+      </el-button>
       <el-button type="primary" @click="openCreate">
         <el-icon><Plus /></el-icon>&nbsp;新建账号
       </el-button>
@@ -82,18 +85,10 @@
           </el-select>
         </el-form-item>
         <el-form-item label="部门">
-          <el-select
-            v-model="createForm.department"
-            style="width: 100%"
-            filterable
-            allow-create
-            default-first-option
-            clearable
-            placeholder="选择或输入新部门"
-          >
-            <el-option v-for="d in departments" :key="d" :label="d" :value="d" />
+          <el-select v-model="createForm.department" style="width: 100%" filterable clearable placeholder="选择部门（可不选）">
+            <el-option v-for="d in departments" :key="d.id" :label="d.name" :value="d.name" />
           </el-select>
-          <div class="text-muted">主席只审核本部门部长的稿件；不填则不限部门</div>
+          <div class="text-muted">主席只审核本部门部长的稿件；不填则不限部门。部门在「部门管理」中维护</div>
         </el-form-item>
         <el-form-item label="邮箱">
           <el-input v-model="createForm.email" placeholder="可选；主席填了才能收到待审核邮件通知" />
@@ -118,16 +113,8 @@
           <div class="text-muted">主席可审核本部门稿件并发布B站动态；管理员拥有全部权限</div>
         </el-form-item>
         <el-form-item label="部门">
-          <el-select
-            v-model="editForm.department"
-            style="width: 100%"
-            filterable
-            allow-create
-            default-first-option
-            clearable
-            placeholder="选择或输入新部门"
-          >
-            <el-option v-for="d in departments" :key="d" :label="d" :value="d" />
+          <el-select v-model="editForm.department" style="width: 100%" filterable clearable placeholder="选择部门（可不选）">
+            <el-option v-for="d in departments" :key="d.id" :label="d.name" :value="d.name" />
           </el-select>
         </el-form-item>
         <el-form-item label="邮箱">
@@ -148,12 +135,40 @@
         <el-button type="primary" :loading="acting" @click="doReset">确认重置</el-button>
       </template>
     </el-dialog>
+
+    <!-- 部门管理 -->
+    <el-dialog v-model="deptDialog" title="部门管理" width="480px">
+      <div class="dept-add">
+        <el-input
+          v-model="newDeptName"
+          placeholder="新部门名称（1-20个字符）"
+          maxlength="20"
+          @keyup.enter="doAddDept"
+        />
+        <el-button type="primary" :loading="deptActing" @click="doAddDept">添加</el-button>
+      </div>
+      <el-table :data="departments" size="small" max-height="360">
+        <el-table-column prop="name" label="部门名称" min-width="140" show-overflow-tooltip />
+        <el-table-column prop="memberCount" label="成员数" width="80" />
+        <el-table-column label="操作" width="150">
+          <template #default="{ row }">
+            <el-button size="small" @click="doRenameDept(row)">改名</el-button>
+            <el-button size="small" type="danger" :disabled="row.memberCount > 0" @click="doDeleteDept(row)">
+              删除
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="text-muted" style="margin-top: 8px">
+        改名会同步更新所有成员的部门；删除前需先在成员列表中转移或清空该部门的成员。
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import { adminApi } from '../api'
 import { useUserStore } from '../stores/user'
@@ -185,8 +200,62 @@ async function loadDepartments() {
     const data = await adminApi.departments()
     departments.value = data.list
   } catch {
-    /* 下拉可手动输入，加载失败不影响 */
+    /* 静默失败：打开部门管理或刷新页面时会重试 */
   }
+}
+
+// 部门管理（增删改名）
+const deptDialog = ref(false)
+const deptActing = ref(false)
+const newDeptName = ref('')
+
+async function doAddDept() {
+  const name = newDeptName.value.trim()
+  if (!name) {
+    ElMessage.warning('请输入部门名称')
+    return
+  }
+  deptActing.value = true
+  try {
+    await adminApi.createDepartment(name)
+    ElMessage.success('部门已添加')
+    newDeptName.value = ''
+    loadDepartments()
+  } finally {
+    deptActing.value = false
+  }
+}
+
+async function doRenameDept(row) {
+  let value
+  try {
+    ;({ value } = await ElMessageBox.prompt('改名会同步更新该部门所有成员', `改名：${row.name}`, {
+      inputValue: row.name,
+      inputValidator: (v) => {
+        const name = String(v ?? '').trim()
+        return (name.length >= 1 && name.length <= 20) || '部门名称需为1-20个字符'
+      },
+    }))
+  } catch {
+    return
+  }
+  const name = value.trim()
+  if (name === row.name) return
+  await adminApi.renameDepartment(row.id, name)
+  ElMessage.success('已改名并同步成员部门')
+  loadDepartments()
+  load()
+}
+
+async function doDeleteDept(row) {
+  try {
+    await ElMessageBox.confirm(`确定删除部门「${row.name}」？`, '删除部门', { type: 'warning' })
+  } catch {
+    return
+  }
+  await adminApi.deleteDepartment(row.id)
+  ElMessage.success('已删除')
+  loadDepartments()
 }
 
 // 新建
@@ -291,3 +360,11 @@ onMounted(() => {
   loadDepartments()
 })
 </script>
+
+<style scoped>
+.dept-add {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+</style>

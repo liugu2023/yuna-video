@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import bcrypt from 'bcryptjs'
-import db from '../db.js'
+import db, { transaction } from '../db.js'
 import { auth, requireRole } from '../middleware/auth.js'
 import { paginate } from '../lib/helpers.js'
 import { validateAccountFields } from './auth.js'
@@ -17,16 +17,70 @@ function validateProfileFields({ email, department }) {
   if (email !== undefined && email !== '' && (!EMAIL_RE.test(String(email)) || String(email).length > 100)) {
     return '邮箱格式不正确'
   }
-  if (department !== undefined && String(department).trim().length > 20) {
-    return '部门名称不能超过20个字符'
+  if (department !== undefined) {
+    const name = String(department).trim()
+    if (name && !db.prepare('SELECT id FROM departments WHERE name = ?').get(name)) {
+      return '部门不存在，请先在「部门管理」中添加'
+    }
   }
   return null
 }
 
-// 已有部门列表（建号/编辑时下拉选择）
+// ---- 部门管理：字典由管理员维护，成员建号/编辑时从中选择 ----
+
+function validDeptName(raw) {
+  const name = String(raw ?? '').trim()
+  return name && name.length <= 20 ? name : null
+}
+
 router.get('/departments', (req, res) => {
-  const rows = db.prepare(`SELECT DISTINCT department FROM users WHERE department != '' ORDER BY department`).all()
-  res.json({ list: rows.map((r) => r.department) })
+  const list = db
+    .prepare(
+      `SELECT d.id, d.name, (SELECT COUNT(*) FROM users WHERE users.department = d.name) AS memberCount
+       FROM departments d ORDER BY d.name`
+    )
+    .all()
+  res.json({ list })
+})
+
+router.post('/departments', (req, res) => {
+  const name = validDeptName(req.body?.name)
+  if (!name) return res.status(400).json({ error: '部门名称需为1-20个字符' })
+  if (db.prepare('SELECT id FROM departments WHERE name = ?').get(name)) {
+    return res.status(409).json({ error: '该部门已存在' })
+  }
+  const info = db.prepare('INSERT INTO departments (name) VALUES (?)').run(name)
+  res.json({ id: info.lastInsertRowid, name })
+})
+
+// 改名同步更新所有成员的部门（审核隔离与邮件通知都按名称匹配）
+router.put('/departments/:id', (req, res) => {
+  const dept = db.prepare('SELECT * FROM departments WHERE id = ?').get(req.params.id)
+  if (!dept) return res.status(404).json({ error: '部门不存在' })
+
+  const name = validDeptName(req.body?.name)
+  if (!name) return res.status(400).json({ error: '部门名称需为1-20个字符' })
+  if (name === dept.name) return res.json({ id: dept.id, name })
+  if (db.prepare('SELECT id FROM departments WHERE name = ?').get(name)) {
+    return res.status(409).json({ error: '该部门已存在；如需合并，请先把成员转移过去再删除本部门' })
+  }
+
+  transaction(() => {
+    db.prepare('UPDATE departments SET name = ? WHERE id = ?').run(name, dept.id)
+    db.prepare('UPDATE users SET department = ? WHERE department = ?').run(name, dept.name)
+  })
+  res.json({ id: dept.id, name })
+})
+
+router.delete('/departments/:id', (req, res) => {
+  const dept = db.prepare('SELECT * FROM departments WHERE id = ?').get(req.params.id)
+  if (!dept) return res.status(404).json({ error: '部门不存在' })
+
+  const { n } = db.prepare('SELECT COUNT(*) AS n FROM users WHERE department = ?').get(dept.name)
+  if (n > 0) return res.status(400).json({ error: `仍有 ${n} 名成员属于该部门，请先在成员列表中转移或清空他们的部门` })
+
+  db.prepare('DELETE FROM departments WHERE id = ?').run(dept.id)
+  res.json({ ok: true })
 })
 
 // 成员列表

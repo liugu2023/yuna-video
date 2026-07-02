@@ -62,6 +62,12 @@ CREATE TABLE IF NOT EXISTS dynamics (
   created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
+CREATE TABLE IF NOT EXISTS departments (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  name        TEXT UNIQUE NOT NULL,               -- 用户表按名称引用，改名时同步
+  created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_videos_user ON videos(user_id);
 CREATE INDEX IF NOT EXISTS idx_videos_status ON videos(status);
 CREATE INDEX IF NOT EXISTS idx_logs_video ON review_logs(video_id);
@@ -77,6 +83,9 @@ addColumnIfMissing('users', 'department', "department TEXT NOT NULL DEFAULT ''")
 addColumnIfMissing('videos', 'preview_path', "preview_path TEXT NOT NULL DEFAULT ''")
 // preview_status: '' 未探测 | none 无需转码 | processing 转码中 | ready 预览可用 | failed 失败 | skipped 无ffmpeg
 addColumnIfMissing('videos', 'preview_status', "preview_status TEXT NOT NULL DEFAULT ''")
+
+// 部门改为字典制（管理员在成员管理页维护）：把老版本自由填写的存量部门收编进字典
+db.exec(`INSERT OR IGNORE INTO departments (name) SELECT DISTINCT department FROM users WHERE department != ''`)
 
 export function transaction(fn) {
   db.exec('BEGIN')

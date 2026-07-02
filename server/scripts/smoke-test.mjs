@@ -136,8 +136,49 @@ check('提升为审核员', promote.status === 200 && promote.data.role === 'rev
 const selfDemote = await api('PUT', `/admin/users/1`, { token: adminToken, body: { role: 'member' } })
 check('管理员不能自降角色(400)', selfDemote.status === 400)
 
-console.log('== 10. 部门隔离（主席只审本部门） ==')
+console.log('== 10. 部门管理与隔离 ==')
 const ts = Date.now().toString(36)
+
+const deptName = `测试部_${ts}`
+const deptCreated = await api('POST', '/admin/departments', { token: adminToken, body: { name: deptName } })
+check('创建部门', deptCreated.status === 200 && deptCreated.data.id, JSON.stringify(deptCreated.data))
+const deptId = deptCreated.data.id
+check(
+  '重复创建部门被拒(409)',
+  (await api('POST', '/admin/departments', { token: adminToken, body: { name: deptName } })).status === 409
+)
+const ghostDept = await api('POST', '/admin/users', {
+  token: adminToken,
+  body: { username: `dept_x_${ts}`, nickname: '幽灵', password: 'test123456', role: 'member', department: '不存在的部门' },
+})
+check('建号选字典外部门被拒(400)', ghostDept.status === 400, JSON.stringify(ghostDept.data))
+
+const deptUser = await api('POST', '/admin/users', {
+  token: adminToken,
+  body: { username: `dept_t_${ts}`, nickname: '测试部员', password: 'test123456', role: 'member', department: deptName },
+})
+check('建号选字典内部门', deptUser.status === 200, JSON.stringify(deptUser.data))
+
+const deptRenamed = `测试部改_${ts}`
+const renamed = await api('PUT', `/admin/departments/${deptId}`, { token: adminToken, body: { name: deptRenamed } })
+check('部门改名', renamed.status === 200 && renamed.data.name === deptRenamed, JSON.stringify(renamed.data))
+const afterRename = await api('GET', `/admin/users?keyword=dept_t_${ts}`, { token: adminToken })
+check(
+  '改名同步成员部门',
+  afterRename.data.list?.find((u) => u.username === `dept_t_${ts}`)?.department === deptRenamed,
+  JSON.stringify(afterRename.data.list)
+)
+
+const delBusy = await api('DELETE', `/admin/departments/${deptId}`, { token: adminToken })
+check('有成员的部门不可删(400)', delBusy.status === 400, JSON.stringify(delBusy.data))
+await api('PUT', `/admin/users/${deptUser.data.id}`, { token: adminToken, body: { department: '' } })
+const delOk = await api('DELETE', `/admin/departments/${deptId}`, { token: adminToken })
+check('清空成员后可删除部门', delOk.status === 200, JSON.stringify(delOk.data))
+
+// 隔离测试用的两个部门（历史数据里可能已存在，重复创建的 409 忽略即可）
+for (const name of ['宣传部', '技术部']) {
+  await api('POST', '/admin/departments', { token: adminToken, body: { name } })
+}
 for (const [u, nick, role, dept] of [
   [`dept_m_${ts}`, '宣传部长', 'member', '宣传部'],
   [`dept_r1_${ts}`, '技术主席', 'reviewer', '技术部'],
