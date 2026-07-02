@@ -20,16 +20,19 @@
         <el-col :span="14">
           <div class="page-card">
             <video
-              v-if="video.video_path && playable"
+              v-if="video.video_path && playable && !playError"
               :src="video.video_path"
               :poster="video.cover_path || undefined"
               controls
               preload="metadata"
               class="player"
+              @error="playError = true"
             />
             <el-alert v-else-if="video.video_path" type="info" :closable="false" show-icon>
               <template #title>
-                该格式（{{ video.video_name }}）浏览器可能无法在线预览，
+                {{ playError
+                  ? '该视频的编码浏览器无法在线播放（常见于老式MPEG-4、HEVC等，不影响投稿B站），'
+                  : `该格式（${video.video_name}）浏览器可能无法在线预览，` }}
                 <el-link type="primary" :href="video.video_path" target="_blank" download>点击下载查看</el-link>
               </template>
             </el-alert>
@@ -225,10 +228,12 @@ const job = ref(null)
 let pollTimer = null
 
 const playable = computed(() => isPlayable(video.value?.video_path))
+const playError = ref(false)
 const jobRunning = computed(() => job.value?.status === 'running')
 
 async function load() {
   loading.value = true
+  playError.value = false
   try {
     video.value = await reviewApi.get(route.params.id)
     if (!pubTags.value.length && video.value.tags?.length) {
