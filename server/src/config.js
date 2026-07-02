@@ -1,8 +1,19 @@
+import fs from 'node:fs'
 import path from 'node:path'
+import { parseEnv } from 'node:util'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const rootDir = path.resolve(__dirname, '..')
+
+// 可选配置文件 server/.env（KEY=VALUE 每行一条，支持 # 注释，模板见 .env.example）：
+// 启动时读入环境变量；已存在的环境变量优先，命令行临时覆盖不受影响
+const envFile = path.join(rootDir, '.env')
+if (fs.existsSync(envFile)) {
+  for (const [key, value] of Object.entries(parseEnv(fs.readFileSync(envFile, 'utf8')))) {
+    if (process.env[key] === undefined) process.env[key] = value
+  }
+}
 
 export default {
   port: Number(process.env.PORT || 3000),
