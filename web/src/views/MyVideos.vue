@@ -54,13 +54,15 @@
         </template>
       </el-table-column>
       <el-table-column prop="updated_at" label="更新时间" width="170" />
-      <el-table-column label="操作" width="270" fixed="right">
+      <el-table-column label="操作" width="290" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" @click="router.push(`/videos/${row.id}`)">详情</el-button>
-          <el-button v-if="editable(row)" size="small" @click="router.push(`/videos/${row.id}/edit`)">编辑</el-button>
-          <el-button v-if="editable(row)" size="small" type="primary" @click="submit(row)">提交审核</el-button>
-          <el-button v-if="row.status === 'pending'" size="small" type="warning" @click="withdraw(row)">撤回</el-button>
-          <el-button v-if="editable(row)" size="small" type="danger" @click="remove(row)">删除</el-button>
+          <div class="row-ops">
+            <el-button size="small" @click="router.push(`/videos/${row.id}`)">详情</el-button>
+            <el-button v-if="editable(row)" size="small" @click="router.push(`/videos/${row.id}/edit`)">编辑</el-button>
+            <el-button v-if="editable(row)" size="small" type="primary" @click="submit(row)">提交审核</el-button>
+            <el-button v-if="row.status === 'pending'" size="small" type="warning" @click="withdraw(row)">撤回</el-button>
+            <el-button v-if="editable(row)" size="small" type="danger" @click="remove(row)">删除</el-button>
+          </div>
         </template>
       </el-table-column>
       <template #empty>
@@ -161,5 +163,16 @@ onMounted(() => load())
   color: #c0c4cc;
   background: #f0f2f5;
   border-radius: 4px;
+}
+
+/* 操作按钮用 gap 排列：数量多换行时也能对齐（覆盖相邻按钮的默认 margin） */
+.row-ops {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.row-ops .el-button {
+  margin-left: 0;
 }
 </style>
