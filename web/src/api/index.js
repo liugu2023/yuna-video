@@ -72,6 +72,7 @@ export const reviewApi = {
 
 export const adminApi = {
   users: (params) => http.get('/admin/users', { params }),
+  departments: () => http.get('/admin/departments'),
   createUser: (data) => http.post('/admin/users', data),
   updateUser: (id, data) => http.put(`/admin/users/${id}`, data),
   resetPassword: (id, password) => http.post(`/admin/users/${id}/reset-password`, { password }),

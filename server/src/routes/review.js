@@ -15,6 +15,11 @@ import { isConfigured, startPublishJob, getJob, serializeJob } from '../lib/publ
 const router = Router()
 router.use(auth, requireRole('reviewer', 'admin'))
 
+// 主席（审核员）只能审本部门的稿件；未分配部门的主席可看全部（兼容老账号），管理员不受限
+function deptScope(reqUser) {
+  return reqUser.role === 'reviewer' && reqUser.department ? reqUser.department : null
+}
+
 // 全站稿件列表（审核视角）
 router.get('/videos', (req, res) => {
   const { page, pageSize, offset } = paginate(req)
@@ -22,6 +27,11 @@ router.get('/videos', (req, res) => {
 
   let where = 'WHERE 1 = 1'
   const params = []
+  const dept = deptScope(req.user)
+  if (dept) {
+    where += ' AND u.department = ?'
+    params.push(dept)
+  }
   if (status && VIDEO_STATUSES.includes(status)) {
     where += ' AND v.status = ?'
     params.push(status)
@@ -41,7 +51,7 @@ router.get('/videos', (req, res) => {
     .get(...params)
   const list = db
     .prepare(
-      `SELECT v.*, u.nickname AS uploader_nickname, u.username AS uploader_username
+      `SELECT v.*, u.nickname AS uploader_nickname, u.username AS uploader_username, u.department AS uploader_department
        FROM videos v JOIN users u ON u.id = v.user_id
        ${where} ${order} LIMIT ? OFFSET ?`
     )
@@ -55,6 +65,10 @@ router.get('/videos', (req, res) => {
 router.get('/videos/:id', (req, res) => {
   const video = getVideoWithNames(req.params.id)
   if (!video) return res.status(404).json({ error: '稿件不存在' })
+  const dept = deptScope(req.user)
+  if (dept && video.uploader_department !== dept) {
+    return res.status(403).json({ error: '该稿件属于其他部门，无权查看' })
+  }
   res.json({ ...video, logs: getVideoLogs(video.id) })
 })
 
@@ -63,6 +77,14 @@ function loadVideo(req, res, expectedStatus, statusError) {
   if (!video) {
     res.status(404).json({ error: '稿件不存在' })
     return null
+  }
+  const dept = deptScope(req.user)
+  if (dept) {
+    const uploader = db.prepare('SELECT department FROM users WHERE id = ?').get(video.user_id)
+    if (uploader?.department !== dept) {
+      res.status(403).json({ error: '该稿件属于其他部门，无权操作' })
+      return null
+    }
   }
   if (video.status !== expectedStatus) {
     res.status(400).json({ error: statusError })

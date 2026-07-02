@@ -67,6 +67,14 @@ CREATE INDEX IF NOT EXISTS idx_videos_status ON videos(status);
 CREATE INDEX IF NOT EXISTS idx_logs_video ON review_logs(video_id);
 `)
 
+// 存量库迁移：按需补列（新库由上面的 CREATE TABLE 默认值覆盖不到，users 表结构较早）
+function addColumnIfMissing(table, name, colDef) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name)
+  if (!cols.includes(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${colDef}`)
+}
+addColumnIfMissing('users', 'email', "email TEXT NOT NULL DEFAULT ''")
+addColumnIfMissing('users', 'department', "department TEXT NOT NULL DEFAULT ''")
+
 export function transaction(fn) {
   db.exec('BEGIN')
   try {

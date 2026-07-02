@@ -136,9 +136,53 @@ check('提升为审核员', promote.status === 200 && promote.data.role === 'rev
 const selfDemote = await api('PUT', `/admin/users/1`, { token: adminToken, body: { role: 'member' } })
 check('管理员不能自降角色(400)', selfDemote.status === 400)
 
-console.log('== 10. 清理测试数据 ==')
+console.log('== 10. 部门隔离（主席只审本部门） ==')
+const ts = Date.now().toString(36)
+for (const [u, nick, role, dept] of [
+  [`dept_m_${ts}`, '宣传部长', 'member', '宣传部'],
+  [`dept_r1_${ts}`, '技术主席', 'reviewer', '技术部'],
+  [`dept_r2_${ts}`, '宣传主席', 'reviewer', '宣传部'],
+]) {
+  await api('POST', '/admin/users', {
+    token: adminToken,
+    body: { username: u, nickname: nick, password: 'test123456', role, department: dept },
+  })
+}
+const tokenOf = async (u) =>
+  (await api('POST', '/auth/login', { body: { username: u, password: 'test123456' } })).data.token
+const mB = await tokenOf(`dept_m_${ts}`)
+const r1 = await tokenOf(`dept_r1_${ts}`)
+const r2 = await tokenOf(`dept_r2_${ts}`)
+
+const form2 = new FormData()
+form2.append('file', new Blob([new Uint8Array(512).fill(3)], { type: 'video/mp4' }), '部门测试.mp4')
+const up2 = await api('POST', '/upload/video', { token: mB, form: form2 })
+const created2 = await api('POST', '/videos', {
+  token: mB,
+  body: { title: '【测试】部门隔离稿件', tags: ['测试'], videoPath: up2.data.path, videoName: up2.data.name, videoSize: up2.data.size },
+})
+const vid2 = created2.data.id
+await api('POST', `/videos/${vid2}/submit`, { token: mB })
+
+const kw = encodeURIComponent('部门隔离')
+const otherList = await api('GET', `/review/videos?keyword=${kw}`, { token: r1 })
+check('外部门主席列表看不到稿件', !otherList.data.list?.some((v) => v.id === vid2))
+check('外部门主席看详情被拒(403)', (await api('GET', `/review/videos/${vid2}`, { token: r1 })).status === 403)
+check(
+  '外部门主席审核被拒(403)',
+  (await api('POST', `/review/videos/${vid2}/approve`, { token: r1, body: {} })).status === 403
+)
+const ownList = await api('GET', `/review/videos?keyword=${kw}`, { token: r2 })
+check('本部门主席列表可见稿件', ownList.data.list?.some((v) => v.id === vid2))
+check('列表返回部门字段', ownList.data.list?.find((v) => v.id === vid2)?.uploader_department === '宣传部')
+const ap2 = await api('POST', `/review/videos/${vid2}/approve`, { token: r2, body: {} })
+check('本部门主席可审核通过', ap2.status === 200 && ap2.data.status === 'approved')
+
+console.log('== 11. 清理测试数据 ==')
 const del = await api('DELETE', `/videos/${vid}`, { token: adminToken })
 check('管理员删除测试稿件', del.status === 200)
+const del2 = await api('DELETE', `/videos/${vid2}`, { token: adminToken })
+check('删除部门隔离测试稿件', del2.status === 200)
 
 console.log(`\n结果：${passed} 通过, ${failed} 失败`)
 process.exit(failed ? 1 : 0)

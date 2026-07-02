@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import db, { transaction } from '../db.js'
 import { auth } from '../middleware/auth.js'
+import { notifySubmission } from '../lib/mailer.js'
 import {
   VIDEO_STATUSES,
   paginate,
@@ -28,6 +29,14 @@ function findOwnVideo(req, res) {
   if (!isOwner && !isReviewer) {
     res.status(403).json({ error: '无权访问该稿件' })
     return null
+  }
+  // 主席只能查看本部门的他人稿件（与审核接口一致；未分配部门的主席不受限）
+  if (!isOwner && req.user.role === 'reviewer' && req.user.department) {
+    const uploader = db.prepare('SELECT department FROM users WHERE id = ?').get(video.user_id)
+    if (uploader?.department !== req.user.department) {
+      res.status(403).json({ error: '该稿件属于其他部门，无权访问' })
+      return null
+    }
   }
   video._isOwner = isOwner
   return video
@@ -162,6 +171,7 @@ router.post('/:id/submit', (req, res) => {
      WHERE id = ?`
   ).run(video.id)
   addLog(video.id, req.user.id, 'submit', '提交审核')
+  notifySubmission(video.id) // 异步邮件通知对应部门主席，不阻塞响应
 
   res.json(getVideoWithNames(video.id))
 })

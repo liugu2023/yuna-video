@@ -67,6 +67,7 @@ export function getVideoWithNames(id) {
   const row = db
     .prepare(
       `SELECT v.*, u.nickname AS uploader_nickname, u.username AS uploader_username,
+              u.department AS uploader_department,
               r.nickname AS reviewer_nickname
        FROM videos v
        JOIN users u ON u.id = v.user_id

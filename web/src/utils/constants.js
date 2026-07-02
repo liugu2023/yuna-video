@@ -38,8 +38,8 @@ export const ACTION_MAP = {
 }
 
 export const ROLE_MAP = {
-  member: { label: '成员', type: 'info' },
-  reviewer: { label: '审核员', type: 'warning' },
+  member: { label: '部长', type: 'info' },
+  reviewer: { label: '主席', type: 'warning' },
   admin: { label: '管理员', type: 'danger' },
 }
 

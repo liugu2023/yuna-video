@@ -27,6 +27,8 @@ function safeUser(u) {
     nickname: u.nickname,
     role: u.role,
     status: u.status,
+    email: u.email || '',
+    department: u.department || '',
     created_at: u.created_at,
   }
 }

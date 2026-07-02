@@ -15,7 +15,7 @@ export function auth(req, res, next) {
   }
 
   const user = db
-    .prepare('SELECT id, username, nickname, role, status, created_at FROM users WHERE id = ?')
+    .prepare('SELECT id, username, nickname, role, status, email, department, created_at FROM users WHERE id = ?')
     .get(payload.id)
   if (!user) return res.status(401).json({ error: '账号不存在' })
   if (user.status !== 'active') return res.status(403).json({ error: '账号已被禁用，请联系管理员' })

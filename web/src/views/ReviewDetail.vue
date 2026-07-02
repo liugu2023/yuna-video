@@ -178,6 +178,7 @@
             <el-descriptions :column="1" border size="small">
               <el-descriptions-item label="昵称">{{ video.uploader_nickname }}</el-descriptions-item>
               <el-descriptions-item label="用户名">@{{ video.uploader_username }}</el-descriptions-item>
+              <el-descriptions-item label="部门">{{ video.uploader_department || '—' }}</el-descriptions-item>
               <el-descriptions-item label="提交时间">{{ video.submitted_at || '-' }}</el-descriptions-item>
             </el-descriptions>
 

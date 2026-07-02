@@ -9,6 +9,25 @@ const router = Router()
 router.use(auth, requireRole('admin'))
 
 const ROLES = ['member', 'reviewer', 'admin']
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const USER_FIELDS = 'id, username, nickname, role, status, email, department, created_at'
+
+// 校验可选的邮箱/部门字段，返回错误信息或 null
+function validateProfileFields({ email, department }) {
+  if (email !== undefined && email !== '' && (!EMAIL_RE.test(String(email)) || String(email).length > 100)) {
+    return '邮箱格式不正确'
+  }
+  if (department !== undefined && String(department).trim().length > 20) {
+    return '部门名称不能超过20个字符'
+  }
+  return null
+}
+
+// 已有部门列表（建号/编辑时下拉选择）
+router.get('/departments', (req, res) => {
+  const rows = db.prepare(`SELECT DISTINCT department FROM users WHERE department != '' ORDER BY department`).all()
+  res.json({ list: rows.map((r) => r.department) })
+})
 
 // 成员列表
 router.get('/users', (req, res) => {
@@ -18,15 +37,15 @@ router.get('/users', (req, res) => {
   let where = 'WHERE 1 = 1'
   const params = []
   if (keyword) {
-    where += ' AND (username LIKE ? OR nickname LIKE ?)'
+    where += ' AND (username LIKE ? OR nickname LIKE ? OR department LIKE ?)'
     const like = `%${keyword}%`
-    params.push(like, like)
+    params.push(like, like, like)
   }
 
   const { total } = db.prepare(`SELECT COUNT(*) AS total FROM users ${where}`).get(...params)
   const list = db
     .prepare(
-      `SELECT id, username, nickname, role, status, created_at,
+      `SELECT ${USER_FIELDS},
               (SELECT COUNT(*) FROM videos WHERE videos.user_id = users.id) AS video_count
        FROM users ${where} ORDER BY id ASC LIMIT ? OFFSET ?`
     )
@@ -37,9 +56,9 @@ router.get('/users', (req, res) => {
 
 // 创建成员账号
 router.post('/users', (req, res) => {
-  const { username, nickname, password, role } = req.body || {}
+  const { username, nickname, password, role, email, department } = req.body || {}
 
-  const err = validateAccountFields({ username, nickname, password })
+  const err = validateAccountFields({ username, nickname, password }) || validateProfileFields({ email, department })
   if (err) return res.status(400).json({ error: err })
   if (!ROLES.includes(role)) return res.status(400).json({ error: '角色不合法' })
 
@@ -47,23 +66,29 @@ router.post('/users', (req, res) => {
   if (exists) return res.status(409).json({ error: '用户名已存在' })
 
   const info = db
-    .prepare('INSERT INTO users (username, password_hash, nickname, role) VALUES (?, ?, ?, ?)')
-    .run(username, bcrypt.hashSync(String(password), 10), String(nickname).trim(), role)
+    .prepare('INSERT INTO users (username, password_hash, nickname, role, email, department) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(
+      username,
+      bcrypt.hashSync(String(password), 10),
+      String(nickname).trim(),
+      role,
+      String(email ?? '').trim(),
+      String(department ?? '').trim()
+    )
 
-  res.json(
-    db
-      .prepare('SELECT id, username, nickname, role, status, created_at FROM users WHERE id = ?')
-      .get(info.lastInsertRowid)
-  )
+  res.json(db.prepare(`SELECT ${USER_FIELDS} FROM users WHERE id = ?`).get(info.lastInsertRowid))
 })
 
-// 修改成员（昵称/角色/状态）
+// 修改成员（昵称/角色/状态/邮箱/部门）
 router.put('/users/:id', (req, res) => {
   const target = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id)
   if (!target) return res.status(404).json({ error: '用户不存在' })
 
   const updates = {}
-  const { nickname, role, status } = req.body || {}
+  const { nickname, role, status, email, department } = req.body || {}
+
+  const profileErr = validateProfileFields({ email, department })
+  if (profileErr) return res.status(400).json({ error: profileErr })
 
   if (nickname !== undefined) {
     const nick = String(nickname).trim()
@@ -78,6 +103,8 @@ router.put('/users/:id', (req, res) => {
     if (!['active', 'disabled'].includes(status)) return res.status(400).json({ error: '状态不合法' })
     updates.status = status
   }
+  if (email !== undefined) updates.email = String(email).trim()
+  if (department !== undefined) updates.department = String(department).trim()
 
   // 防止管理员把自己降级/禁用导致失去入口
   if (target.id === req.user.id) {
@@ -96,9 +123,7 @@ router.put('/users/:id', (req, res) => {
     .join(', ')
   db.prepare(`UPDATE users SET ${setClause} WHERE id = ?`).run(...Object.values(updates), target.id)
 
-  res.json(
-    db.prepare('SELECT id, username, nickname, role, status, created_at FROM users WHERE id = ?').get(target.id)
-  )
+  res.json(db.prepare(`SELECT ${USER_FIELDS} FROM users WHERE id = ?`).get(target.id))
 })
 
 // 重置成员密码

@@ -48,6 +48,9 @@
           <div class="text-muted">@{{ row.uploader_username }}</div>
         </template>
       </el-table-column>
+      <el-table-column label="部门" width="110">
+        <template #default="{ row }">{{ row.uploader_department || '—' }}</template>
+      </el-table-column>
       <el-table-column label="状态" width="100">
         <template #default="{ row }">
           <el-tag :type="STATUS_MAP[row.status]?.type">{{ STATUS_MAP[row.status]?.label }}</el-tag>

@@ -3,7 +3,7 @@
     <div class="toolbar">
       <el-input
         v-model="query.keyword"
-        placeholder="搜索用户名 / 昵称"
+        placeholder="搜索用户名 / 昵称 / 部门"
         clearable
         style="width: 220px"
         :prefix-icon="Search"
@@ -20,12 +20,18 @@
       <el-table-column prop="id" label="ID" width="60" />
       <el-table-column prop="username" label="用户名" width="150" />
       <el-table-column prop="nickname" label="昵称" width="150" />
-      <el-table-column label="角色" width="120">
+      <el-table-column label="角色" width="100">
         <template #default="{ row }">
           <el-tag :type="ROLE_MAP[row.role]?.type" effect="light">{{ ROLE_MAP[row.role]?.label }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="video_count" label="稿件数" width="90" />
+      <el-table-column label="部门" width="110">
+        <template #default="{ row }">{{ row.department || '—' }}</template>
+      </el-table-column>
+      <el-table-column label="邮箱" min-width="170" show-overflow-tooltip>
+        <template #default="{ row }">{{ row.email || '—' }}</template>
+      </el-table-column>
+      <el-table-column prop="video_count" label="稿件数" width="80" />
       <el-table-column label="状态" width="100">
         <template #default="{ row }">
           <el-switch
@@ -75,6 +81,23 @@
             <el-option v-for="(v, k) in ROLE_MAP" :key="k" :label="v.label" :value="k" />
           </el-select>
         </el-form-item>
+        <el-form-item label="部门">
+          <el-select
+            v-model="createForm.department"
+            style="width: 100%"
+            filterable
+            allow-create
+            default-first-option
+            clearable
+            placeholder="选择或输入新部门"
+          >
+            <el-option v-for="d in departments" :key="d" :label="d" :value="d" />
+          </el-select>
+          <div class="text-muted">主席只审核本部门部长的稿件；不填则不限部门</div>
+        </el-form-item>
+        <el-form-item label="邮箱">
+          <el-input v-model="createForm.email" placeholder="可选；主席填了才能收到待审核邮件通知" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="createDialog = false">取消</el-button>
@@ -82,7 +105,7 @@
       </template>
     </el-dialog>
 
-    <!-- 编辑（昵称+角色） -->
+    <!-- 编辑（昵称/角色/部门/邮箱） -->
     <el-dialog v-model="editDialog" :title="`编辑：${editRow?.username}`" width="440px">
       <el-form label-width="80px">
         <el-form-item label="昵称">
@@ -92,7 +115,23 @@
           <el-select v-model="editForm.role" style="width: 100%" :disabled="editRow?.id === store.user?.id">
             <el-option v-for="(v, k) in ROLE_MAP" :key="k" :label="v.label" :value="k" />
           </el-select>
-          <div class="text-muted">审核员可审核稿件；管理员额外拥有成员管理权限</div>
+          <div class="text-muted">主席可审核本部门稿件并发布B站动态；管理员拥有全部权限</div>
+        </el-form-item>
+        <el-form-item label="部门">
+          <el-select
+            v-model="editForm.department"
+            style="width: 100%"
+            filterable
+            allow-create
+            default-first-option
+            clearable
+            placeholder="选择或输入新部门"
+          >
+            <el-option v-for="d in departments" :key="d" :label="d" :value="d" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="邮箱">
+          <el-input v-model="editForm.email" placeholder="可选；主席填了才能收到待审核邮件通知" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -126,6 +165,7 @@ const loading = ref(false)
 const acting = ref(false)
 const list = ref([])
 const total = ref(0)
+const departments = ref([])
 const query = reactive({ keyword: '', page: 1, pageSize: 20 })
 
 async function load(page) {
@@ -140,10 +180,19 @@ async function load(page) {
   }
 }
 
+async function loadDepartments() {
+  try {
+    const data = await adminApi.departments()
+    departments.value = data.list
+  } catch {
+    /* 下拉可手动输入，加载失败不影响 */
+  }
+}
+
 // 新建
 const createDialog = ref(false)
 const createRef = ref()
-const createForm = reactive({ username: '', nickname: '', password: '', role: 'member' })
+const createForm = reactive({ username: '', nickname: '', password: '', role: 'member', department: '', email: '' })
 const createRules = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
@@ -157,7 +206,7 @@ const createRules = {
 }
 
 function openCreate() {
-  Object.assign(createForm, { username: '', nickname: '', password: '', role: 'member' })
+  Object.assign(createForm, { username: '', nickname: '', password: '', role: 'member', department: '', email: '' })
   createDialog.value = true
 }
 
@@ -169,6 +218,7 @@ async function doCreate() {
     ElMessage.success('账号已创建')
     createDialog.value = false
     load()
+    loadDepartments()
   } finally {
     acting.value = false
   }
@@ -177,22 +227,25 @@ async function doCreate() {
 // 编辑
 const editDialog = ref(false)
 const editRow = ref(null)
-const editForm = reactive({ nickname: '', role: 'member' })
+const editForm = reactive({ nickname: '', role: 'member', department: '', email: '' })
 
 function openEdit(row) {
   editRow.value = row
   editForm.nickname = row.nickname
   editForm.role = row.role
+  editForm.department = row.department || ''
+  editForm.email = row.email || ''
   editDialog.value = true
 }
 
 async function doEdit() {
   acting.value = true
   try {
-    await adminApi.updateUser(editRow.value.id, { nickname: editForm.nickname, role: editForm.role })
+    await adminApi.updateUser(editRow.value.id, { ...editForm })
     ElMessage.success('已保存')
     editDialog.value = false
     load()
+    loadDepartments()
   } finally {
     acting.value = false
   }
@@ -233,5 +286,8 @@ async function doReset() {
   }
 }
 
-onMounted(() => load())
+onMounted(() => {
+  load()
+  loadDepartments()
+})
 </script>

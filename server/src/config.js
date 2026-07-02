@@ -27,4 +27,14 @@ export default {
     intervalHours: Number(process.env.BILI_KEEPALIVE_HOURS || 12),
     renewDays: Number(process.env.BILI_RENEW_DAYS || 7),
   },
+  // 邮件通知（可选）：配置 SMTP_USER + SMTP_PASS 后启用（QQ邮箱在设置→账户里开启SMTP拿授权码）
+  smtp: {
+    host: process.env.SMTP_HOST || 'smtp.qq.com',
+    port: Number(process.env.SMTP_PORT || 465),
+    user: process.env.SMTP_USER || '',
+    pass: process.env.SMTP_PASS || '',
+    from: process.env.SMTP_FROM || process.env.SMTP_USER || '',
+  },
+  // 平台对外访问地址（用于邮件里的审核链接，如 https://video.example.com），留空则不带链接
+  siteUrl: (process.env.SITE_URL || '').replace(/\/+$/, ''),
 }
