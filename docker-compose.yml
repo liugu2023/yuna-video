@@ -6,8 +6,8 @@ services:
       # args:
       #   NPM_REGISTRY: https://registry.npmmirror.com
       #   BILIUP_GH_MIRROR: https://ghfast.top/
-      #   FFMPEG_BINARIES_URL: https://registry.npmmirror.com/-/binary/ffmpeg-static
-    image: yuna-video
+      #   APK_MIRROR: https://mirrors.tuna.tsinghua.edu.cn
+    image: yuna-video:latest
     container_name: yuna-video
     restart: unless-stopped
     ports:

@@ -23,8 +23,11 @@ export default {
   dataDir: path.join(rootDir, 'data'),
   uploadDir: path.join(rootDir, 'uploads'),
   webDist: path.resolve(rootDir, '../web/dist'),
-  maxVideoSize: 8 * 1024 * 1024 * 1024, // 8GB，对齐B站单文件上限
+  maxVideoSize: Number(process.env.MAX_VIDEO_SIZE_GB || 2) * 1024 ** 3, // 单个视频上限（GB）
   maxCoverSize: 10 * 1024 * 1024, // 10MB
+  // 全站存储配额（GB）：未清理的本地视频（video_path 非空）总大小达到上限后暂停上传通道，
+  // 稿件发布（本地文件自动删除）或删除稿件后释放
+  videoQuota: Number(process.env.VIDEO_QUOTA_GB || 9) * 1024 ** 3,
   // biliup 自动投稿（可选）：两个文件都存在时，审核端出现“自动投稿到B站”功能
   // 二进制由 scripts/install-biliup.mjs 在 npm install 时按平台自动下载
   biliup: {

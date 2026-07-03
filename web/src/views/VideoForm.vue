@@ -24,7 +24,7 @@
               <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
               <div class="el-upload__text">将视频拖到此处，或<em>点击上传</em></div>
               <template #tip>
-                <div class="el-upload__tip">支持 mp4 / mov / flv / avi / wmv / webm / mkv 等，单个文件不超过 8GB；推荐 mp4 以便在线预览</div>
+                <div class="el-upload__tip">支持 mp4 / mov / flv / avi / wmv / webm / mkv 等，单个文件不超过 {{ maxVideoGB }}GB；推荐 mp4 以便在线预览</div>
               </template>
             </el-upload>
           </template>
@@ -108,7 +108,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { videoApi, uploadApi } from '../api'
@@ -126,6 +126,15 @@ const progress = ref(0)
 const rejectReason = ref('')
 
 const formRef = ref()
+
+// 上传限制（服务端 .env 可调），加载失败时用默认值兜底，最终以服务端校验为准
+const maxVideoSize = ref(2 * 1024 ** 3)
+const maxVideoGB = computed(() => Math.round((maxVideoSize.value / 1024 ** 3) * 10) / 10)
+uploadApi
+  .config()
+  .then((c) => (maxVideoSize.value = c.maxVideoSize))
+  .catch(() => {})
+
 const form = reactive({
   title: '',
   description: '',
@@ -144,6 +153,10 @@ const rules = {
 }
 
 async function doUploadVideo({ file }) {
+  if (file.size > maxVideoSize.value) {
+    ElMessage.error(`视频超过单文件 ${maxVideoGB.value}GB 上限`)
+    return
+  }
   uploading.value = true
   uploadingName.value = file.name
   progress.value = 0

@@ -32,6 +32,7 @@ export const authApi = {
 }
 
 export const uploadApi = {
+  config: () => http.get('/upload/config'),
   video(file, onProgress) {
     const fd = new FormData()
     fd.append('file', file)

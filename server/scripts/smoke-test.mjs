@@ -219,7 +219,33 @@ check('列表返回部门字段', ownList.data.list?.find((v) => v.id === vid2)?
 const ap2 = await api('POST', `/review/videos/${vid2}/approve`, { token: r2, body: {} })
 check('本部门主席可审核通过', ap2.status === 200 && ap2.data.status === 'approved')
 
-console.log('== 11. 清理测试数据 ==')
+console.log('== 11. 存储配额（总量超9GB暂停上传通道） ==')
+const mkForm = () => {
+  const f = new FormData()
+  f.append('file', new Blob([new Uint8Array(256).fill(7)], { type: 'video/mp4' }), '配额测试.mp4')
+  return f
+}
+const up3 = await api('POST', '/upload/video', { token: mB, form: mkForm() })
+const bigDraft = await api('POST', '/videos', {
+  token: mB,
+  body: { title: '【测试】配额占位', tags: ['测试'], videoPath: up3.data.path, videoName: up3.data.name, videoSize: 10 * 1024 ** 3 },
+})
+check('创建大体积占位稿件', bigDraft.status === 200, JSON.stringify(bigDraft.data))
+const blocked = await api('POST', '/upload/video', { token: mB, form: mkForm() })
+check('超配额后上传被拒(507)', blocked.status === 507, JSON.stringify(blocked.data))
+check('错误提示包含占用信息', /存储空间已满/.test(blocked.data?.error || ''), blocked.data?.error)
+const freed = await api('DELETE', `/videos/${bigDraft.data.id}`, { token: mB })
+check('删除占位稿件释放配额', freed.status === 200)
+const upAgain = await api('POST', '/upload/video', { token: mB, form: mkForm() })
+check('配额释放后恢复上传', upAgain.status === 200, JSON.stringify(upAgain.data))
+// 把恢复性上传的文件挂到临时草稿再删除，避免遗留孤儿文件
+const tmpDraft = await api('POST', '/videos', {
+  token: mB,
+  body: { title: '【测试】配额清理占位', tags: [], videoPath: upAgain.data.path, videoName: upAgain.data.name, videoSize: upAgain.data.size },
+})
+await api('DELETE', `/videos/${tmpDraft.data.id}`, { token: mB })
+
+console.log('== 12. 清理测试数据 ==')
 const del = await api('DELETE', `/videos/${vid}`, { token: adminToken })
 check('管理员删除测试稿件', del.status === 200)
 const del2 = await api('DELETE', `/videos/${vid2}`, { token: adminToken })
