@@ -1,3 +1,4 @@
+import './lib/logger.js' // 必须最先导入：给后续所有 console 输出加时间戳
 import express from 'express'
 import cors from 'cors'
 import fs from 'node:fs'
@@ -12,6 +13,7 @@ import adminRoutes from './routes/admin.js'
 import statsRoutes from './routes/stats.js'
 import biliRoutes from './routes/bili.js'
 import { startKeepalive } from './lib/bili-account.js'
+import { isMailConfigured } from './lib/mailer.js'
 import { sweepPublishedVideos } from './lib/helpers.js'
 import { recoverPreviews } from './lib/transcoder.js'
 
@@ -23,6 +25,17 @@ app.use(express.json({ limit: '2mb' }))
 // 上传文件静态服务（express.static 原生支持 Range，视频可拖动进度条）
 app.use('/uploads', express.static(config.uploadDir, { maxAge: '7d' }))
 app.use('/uploads', (req, res) => res.status(404).json({ error: '文件不存在' }))
+
+// API 请求日志：方法 路径 状态码 耗时 用户ID（healthcheck 的 GET /api 探活除外）
+app.use('/api', (req, res, next) => {
+  if (req.originalUrl === '/api') return next()
+  const start = Date.now()
+  res.on('finish', () => {
+    const user = req.user ? `user#${req.user.id}` : '-'
+    console.log(`[http] ${req.method} ${req.originalUrl} ${res.statusCode} ${Date.now() - start}ms ${user}`)
+  })
+  next()
+})
 
 app.use('/api/auth', authRoutes)
 app.use('/api/upload', uploadRoutes)
@@ -49,6 +62,11 @@ app.use((err, req, res, next) => {
 const server = app.listen(config.port, () => {
   console.log(`[server] 后端服务已启动: http://localhost:${config.port}`)
   console.log(`[server] 上传目录: ${config.uploadDir}`)
+  console.log(
+    isMailConfigured()
+      ? `[mail] 邮件通知已启用：SMTP ${config.smtp.host}:${config.smtp.port}，发件人 ${config.smtp.from}`
+      : '[mail] 邮件通知未启用（在 server/.env 配置 SMTP_USER + SMTP_PASS 后开启）'
+  )
 })
 
 // 大视频上传耗时较长，关闭请求超时限制

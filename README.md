@@ -138,7 +138,7 @@ cd ../server && npm start # 后端检测到 web/dist 后会直接托管前端，
 docker compose up -d --build   # 首次构建需几分钟，完成后访问 http://localhost:3000
 ```
 
-- **配置**沿用 `server/.env`（模板见 `server/.env.example`）：compose 通过 `env_file` 把它注入容器，与裸机部署共用同一份配置；没有该文件也能正常启动。容器内固定监听 3000，改宿主机端口只改 compose 里 `ports` 的左侧。
+- **配置**两个位置都认：仓库根目录 `.env`（docker 部署习惯位置）或 `server/.env`（与裸机部署共用同一份），模板见 `server/.env.example`；两处都存在时根目录覆盖同名项，都没有也能正常启动。改配置后需 `docker compose up -d` 重建容器生效（单纯 restart 不会重新读 `.env`）。容器内固定监听 3000，改宿主机端口只改 compose 里 `ports` 的左侧。
 - **数据持久化**：`server/data`（数据库、B站凭据）与 `server/uploads` 已挂载到宿主机，重建容器不丢数据，备份这两个目录即可；扫码绑定B站账号等操作照常在页面上进行。
 - **镜像自带** biliup、静态 ffmpeg 与 `TZ=Asia/Shanghai` 时区（稿件时间按本地时区落库，可在 `.env` 里覆盖 `TZ`）。构建期需访问 GitHub 下载 biliup 与 ffmpeg，国内网络把 compose 里 `build.args` 的四行注释解开即可换 npm / GitHub / apk / ffmpeg 镜像源。
 - 不用 compose 时等价的裸命令：

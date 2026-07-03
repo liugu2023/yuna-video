@@ -13,13 +13,22 @@ services:
     restart: unless-stopped
     ports:
       - '3000:3000' # 改宿主机端口只动左边，容器内固定监听 3000
-    # 配置沿用 server/.env（模板见 server/.env.example），与裸机部署共用同一份；没有该文件也能启动
+    # 配置两个位置都认：仓库根目录 .env（docker 部署习惯位置）或 server/.env（与裸机部署共用，模板见 server/.env.example）；
+    # 两处都存在时根目录覆盖同名项；都没有也能启动
     env_file:
       - path: ./server/.env
+        required: false
+      - path: ./.env
         required: false
     environment:
       # 容器内固定监听 3000，避免 .env 里的 PORT 悄悄改掉监听端口、导致上面的映射失效
       PORT: 3000
     volumes:
-      - ./server/data:/app/server/data
-      - ./server/uploads:/app/server/uploads
+      - /opt/docker/yuna-video/server/data:/app/server/data
+      - /opt/docker/yuna-video/server/uploads:/app/server/uploads
+    # 容器日志轮转：单文件 10MB × 3 份，防止长期运行占满磁盘（应用日志只走标准输出，见 server/src/lib/logger.js）
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'

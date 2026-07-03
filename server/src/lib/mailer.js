@@ -33,7 +33,10 @@ export async function notifySubmission(videoId) {
          FROM videos v JOIN users u ON u.id = v.user_id WHERE v.id = ?`
       )
       .get(videoId)
-    if (!video || video.status !== 'pending') return
+    if (!video || video.status !== 'pending') {
+      console.warn(`[mail] 稿件 #${videoId} 跳过通知：${!video ? '稿件不存在' : `状态为 ${video.status}，非待审核`}`)
+      return
+    }
 
     let recipients = db
       .prepare(
@@ -48,7 +51,9 @@ export async function notifySubmission(videoId) {
         .all()
     }
     if (!recipients.length) {
-      console.log('[mail] 跳过通知：没有配置了邮箱的主席或管理员')
+      console.warn(
+        `[mail] 稿件 #${videoId} 跳过通知：主席和管理员都没有填邮箱（后台「用户管理」给审核人补上邮箱后生效）`
+      )
       return
     }
 
@@ -67,14 +72,20 @@ export async function notifySubmission(videoId) {
       .filter(Boolean)
       .join('\n')
 
-    await getTransporter().sendMail({
+    const to = recipients.map((r) => r.email).join(', ')
+    console.log(`[mail] 稿件 #${videoId} 发送通知 → ${to}`)
+    const info = await getTransporter().sendMail({
       from: `"投稿审核平台" <${config.smtp.from}>`,
-      to: recipients.map((r) => r.email).join(', '),
+      to,
       subject,
       text,
     })
-    console.log(`[mail] 已通知 ${recipients.length} 位收件人：${subject}`)
+    console.log(`[mail] 稿件 #${videoId} 已通知 ${recipients.length} 位收件人（${info.response || info.messageId}）`)
   } catch (err) {
-    console.warn(`[mail] 通知发送失败：${err.message}`)
+    // SMTP 错误带上错误码与服务器应答，方便从 docker logs 直接定位（如 535 授权码错误、550 收件人不存在）
+    const detail = [err.code, err.responseCode, err.command].filter(Boolean).join(' / ')
+    console.error(
+      `[mail] 稿件 #${videoId} 通知发送失败${detail ? `（${detail}）` : ''}：${err.response || err.message}`
+    )
   }
 }
